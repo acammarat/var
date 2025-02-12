@@ -10,7 +10,7 @@ See also examples/gto/20-soc_ecp.py
 '''
 
 import pyscf
-from pyscf.pbc import gto
+from pyscf.pbc import gto, cc
 
 cell = gto.Cell()
 cell.build(
@@ -27,7 +27,7 @@ cell.build(
 )
 
 
-kp = 2
+kp = 1
 kpts = cell.make_kpts([kp,kp,kp],wrap_around=True, with_gamma_point=True, scaled_center=None, space_group_symmetry=True, time_reversal_symmetry=True)
 print('kp = ', kp) 
 
@@ -37,7 +37,7 @@ print('kp = ', kp)
 
 cscf_set = pyscf.pbc.scf.KRHF(cell,kpts=kpts)
 # https://pyscf.org/user/pbc/scf.html#smearing
-cscf_set = pyscf.pbc.scf.addons.smearing_(cscf_set, sigma=0.0001, method='fermi')
+# cscf_set = pyscf.pbc.scf.addons.smearing_(cscf_set, sigma=0.0001, method='fermi')
 
 cscf = cscf_set.run(
     init_guess = 'chk', # chk to read from chkfile
