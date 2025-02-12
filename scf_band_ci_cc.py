@@ -62,6 +62,7 @@ cscf = cscf_set.run(
 
 
 ccsolver = pyscf.pbc.cc.KRCCSD(cscf)
+ccsolver.kpts = kpts.kpts  # Ensure kpts are correctly set
 ccsolver.run(
     diis_start_cycle = 3,
     diis_space = 8,
