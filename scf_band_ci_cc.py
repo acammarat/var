@@ -27,7 +27,7 @@ cell.build(
 )
 
 
-kp = 1
+kp = 2
 kpts = cell.make_kpts([kp,kp,kp],wrap_around=True, with_gamma_point=True, scaled_center=None, space_group_symmetry=True, time_reversal_symmetry=True)
 print('kp = ', kp) 
 
