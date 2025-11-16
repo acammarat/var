@@ -63,6 +63,7 @@ python3 avgpos.py
 - `--no-circles`: Hide circles representing atom positions in the plot (only effective when `--labels` is not used)
 - `--label-no-box`: Show labels without background box in the plot (only when `--labels` is used)
 - `--vrange`: Specify color map range as "vmin,vmax" (e.g., `--vrange=-5,5` or `--vrange=0,10`). If not specified, uses data min/max. Requires both `-o` and `--plot`.
+- `--flip-g`: Flip the sign of g values in the plane projection output. By default, g = average_position - distance_along_direction. With this flag, g = distance_along_direction - average_position.
 
 ### Examples
 
@@ -145,6 +146,13 @@ Generate heatmap with positive color range:
 # Color map will range from 0 to 10
 ```
 
+Calculate average position with flipped g values:
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --flip-g
+# g values will be calculated as: distance_along_direction - average_position
+# instead of the default: average_position - distance_along_direction
+```
+
 ## Output
 
 ### Standard Output
@@ -162,7 +170,7 @@ The tool displays:
 When the `-o` option is specified, the tool generates a data file containing:
 - **Column 1 (e)**: First coordinate of the atom's orthogonal projection onto the plane
 - **Column 2 (f)**: Second coordinate of the atom's orthogonal projection onto the plane  
-- **Column 3 (g)**: Signed distance from the plane (average_position - atom_distance_along_direction)
+- **Column 3 (g)**: Signed distance from the plane (average_position - atom_distance_along_direction by default, or atom_distance_along_direction - average_position with `--flip-g`)
 - **Column 4 (label)**: Atom label - only when `--labels` is used. Format depends on the label option:
   - `--labels type`: Atomic type only (e.g., Ti, O)
   - `--labels id`: POSCAR atom ID only (e.g., 1, 2)
