@@ -61,6 +61,8 @@ python3 avgpos.py
 - `--replicate`: Replicate the plot along e and f axes (format: "ne,nf", default: "1,1")
   - Supports non-integer replication (e.g., "2.5,3" for 2.5x3 replication)
 - `--no-circles`: Hide circles representing atom positions in the plot (only effective when `--labels` is not used)
+- `--label-no-box`: Show labels without background box in the plot (only when `--labels` is used)
+- `--vrange`: Specify color map range as "vmin,vmax" (e.g., `--vrange=-5,5` or `--vrange=0,10`). If not specified, uses data min/max. Requires both `-o` and `--plot`.
 
 ### Examples
 
@@ -126,6 +128,21 @@ Generate smooth heatmap without atom position circles:
 ./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --no-circles
 # Then run: python3 projections_plot.py
 # Plot will show only the smooth interpolated surface without circles
+```
+
+Generate heatmap with custom color map range:
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --vrange=-5,5
+# Then run: python3 projections_plot.py
+# Color map will range from -5 to 5 instead of using data min/max
+# Useful for comparing multiple plots with consistent color scales
+```
+
+Generate heatmap with positive color range:
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --vrange=0,10
+# Then run: python3 projections_plot.py
+# Color map will range from 0 to 10
 ```
 
 ## Output
