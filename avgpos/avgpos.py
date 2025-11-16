@@ -239,7 +239,7 @@ def get_atom_labels(structure, atom_indices, label_format='both'):
     return labels
 
 
-def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False, lattice_shifts=None, label_no_box=False, vrange=None):
+def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False, lattice_shifts=None, label_no_box=False, vrange=None, label_at_projection=False):
     """
     Generate a Python script using matplotlib to plot the plane projection data as a heatmap.
     
@@ -264,6 +264,9 @@ def generate_plot_script(data_file, script_file, output_image='heatmap.png', wit
         Whether to show labels without a background box (only when with_labels is True)
     vrange : tuple or None
         Tuple of (vmin, vmax) to specify the color map range. If None, uses data min/max (default).
+    label_at_projection : bool
+        Whether to position labels at the exact projection coordinates (no offset) and hide circles.
+        Only effective when with_labels is True.
     """
     script_content = f"""#!/usr/bin/env python3
 \"\"\"
@@ -375,7 +378,8 @@ heatmap = ax.pcolormesh(e_mesh, f_mesh, g_interp, cmap='jet', shading='auto', vm
 """
     
     # Add scatter points conditionally
-    if with_labels or not no_circles:
+    # Hide circles only if label_at_projection is True AND with_labels is True (labels replace circles)
+    if (with_labels or not no_circles) and not (label_at_projection and with_labels):
         script_content += f"""
 # Overlay the original data points with their EXACT g values colored
 # This ensures atomic positions correspond to the real g value from the data file
@@ -395,7 +399,28 @@ ax.set_ylabel('y (Å)', fontsize=12)
 """
     
     if with_labels:
-        if label_no_box:
+        if label_at_projection:
+            # Position labels at exact projection coordinates (no offset)
+            if label_no_box:
+                script_content += f"""
+# Add atom labels at exact projection coordinates without background box
+if has_labels:
+    for i in range(len(e)):
+        ax.annotate(labels[i], (e[i], f[i]), 
+                    ha='center', va='center',
+                    fontsize=10, fontweight='bold', color='black')
+"""
+            else:
+                script_content += f"""
+# Add atom labels at exact projection coordinates
+if has_labels:
+    for i in range(len(e)):
+        ax.annotate(labels[i], (e[i], f[i]), 
+                    ha='center', va='center',
+                    fontsize=10, fontweight='bold', color='black',
+                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='black', alpha=0.7))
+"""
+        elif label_no_box:
             script_content += f"""
 # Add atom labels without background box (already replicated above if needed)
 if has_labels:
@@ -562,6 +587,10 @@ Examples:
                         help='Hide circles representing atom positions in the plot (only when --labels is not used)')
     parser.add_argument('--label-no-box', action='store_true',
                         help='Show labels without background box in the plot (only when --labels is used)')
+    parser.add_argument('--label-at-projection', action='store_true',
+                        help='Position labels at the exact atom projection coordinates instead of offset from circles. '
+                             'When used, circles are hidden and labels are centered at the projection position. '
+                             'Only effective when --labels is used. Requires both -o and --plot.')
     parser.add_argument('--vrange', type=str, default=None,
                         help='Specify color map range as "vmin,vmax" (e.g., --vrange=-5,5 or --vrange=0,10). '
                              'If not specified, uses data min/max. Requires both -o and --plot. '
@@ -737,7 +766,7 @@ Examples:
             lattice_shifts = (e_shift, f_shift)
             
             # Generate the plotting script
-            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box, vrange)
+            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box, vrange, args.label_at_projection)
             
             print()
             print(f"Matplotlib plotting script generated: {script_file}")
@@ -746,18 +775,23 @@ Examples:
             if vrange:
                 print(f"  (with custom color range: {vrange[0]} to {vrange[1]})")
             if args.labels:
-                label_style = " without box" if args.label_no_box else ""
+                if args.label_at_projection:
+                    label_style = " at projection coordinates (no circles)" + (" without box" if args.label_no_box else "")
+                else:
+                    label_style = " without box" if args.label_no_box else ""
                 print(f"  (with atom labels{label_style})")
             if replicate != (1, 1):
                 print(f"  (with {replicate[0]}x{replicate[1]} replication)")
             if args.no_circles and not args.labels:
                 print(f"  (without atom position circles)")
-    elif args.plot or args.labels or args.vrange:
+    elif args.plot or args.labels or args.vrange or args.label_at_projection:
         print()
         if args.plot or args.labels:
             print("Warning: --plot and --labels flags require -o/--output to be specified. Ignoring.")
         if args.vrange:
             print("Warning: --vrange flag requires both -o/--output and --plot to be specified. Ignoring.")
+        if args.label_at_projection:
+            print("Warning: --label-at-projection flag requires -o/--output, --plot, and --labels to be specified. Ignoring.")
     
     return 0
 
