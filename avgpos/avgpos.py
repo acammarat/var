@@ -227,7 +227,7 @@ def get_atom_labels(structure, atom_indices):
     return labels
 
 
-def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False):
+def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False, lattice_shifts=None):
     """
     Generate a Python script using matplotlib to plot the plane projection data as a heatmap.
     
@@ -245,6 +245,9 @@ def generate_plot_script(data_file, script_file, output_image='heatmap.png', wit
         Number of replications along e and f axes (ne, nf)
     no_circles : bool
         Whether to hide the circles representing atom positions (only when labels are not used)
+    lattice_shifts : tuple or None
+        Tuple of (e_shift, f_shift) representing the periodic shift distances based on lattice vectors.
+        If None, uses the data range for shifts (legacy behavior).
     """
     script_content = f"""#!/usr/bin/env python3
 \"\"\"
@@ -278,8 +281,16 @@ ne_rep, nf_rep = {replicate[0]}, {replicate[1]}
 
 # Replicate data along e and f axes
 e_list, f_list, g_list, labels_list = [], [], [], []
-e_range_orig = e_orig.max() - e_orig.min() if len(e_orig) > 1 else 1.0
-f_range_orig = f_orig.max() - f_orig.min() if len(f_orig) > 1 else 1.0
+
+# Use lattice-based shifts if provided, otherwise use data range (legacy)
+lattice_shifts = {lattice_shifts}
+if lattice_shifts is not None:
+    e_shift_unit = lattice_shifts[0]
+    f_shift_unit = lattice_shifts[1]
+else:
+    # Legacy behavior: use data range
+    e_shift_unit = e_orig.max() - e_orig.min() if len(e_orig) > 1 else 1.0
+    f_shift_unit = f_orig.max() - f_orig.min() if len(f_orig) > 1 else 1.0
 
 # Determine how many full and partial replications to make
 ne_full = int(np.ceil(ne_rep))
@@ -293,8 +304,8 @@ for ie in range(ne_full):
         
         # Include this replica if it has non-zero contribution
         if e_factor > 0 and f_factor > 0:
-            e_shift = ie * (e_range_orig + (e_orig.max() - e_orig.min()))
-            f_shift = jf * (f_range_orig + (f_orig.max() - f_orig.min()))
+            e_shift = ie * e_shift_unit
+            f_shift = jf * f_shift_unit
             e_list.append(e_orig + e_shift)
             f_list.append(f_orig + f_shift)
             g_list.append(g_orig)
@@ -419,9 +430,12 @@ def calculate_plane_projections(structure, atom_indices, direction_vector, avera
         
     Returns:
     --------
-    numpy.ndarray : Nx3 array where each row contains [e, f, g]
-        - e, f: 2D coordinates of the projection on the plane
-        - g: average_position minus the distance of the atom from the plane
+    tuple : (projections, basis1, basis2)
+        - projections: Nx3 array where each row contains [e, f, g]
+            - e, f: 2D coordinates of the projection on the plane
+            - g: average_position minus the distance of the atom from the plane
+        - basis1: First basis vector of the plane (unit vector)
+        - basis2: Second basis vector of the plane (unit vector)
     """
     positions = structure['positions'][atom_indices]
     
@@ -468,7 +482,7 @@ def calculate_plane_projections(structure, atom_indices, direction_vector, avera
     # Combine into Nx3 array
     result = np.column_stack((e_coords, f_coords, g_coords))
     
-    return result
+    return result, basis1, basis2
 
 
 def main():
@@ -576,7 +590,7 @@ Examples:
     
     # Calculate and write plane projections if output file is specified
     if args.output:
-        projections = calculate_plane_projections(
+        projections, basis1, basis2 = calculate_plane_projections(
             structure, atom_indices, direction_vector, average
         )
         
@@ -630,8 +644,31 @@ Examples:
                 print(f"Warning: Invalid replicate format '{args.replicate}'. Using default 1,1")
                 replicate = (1, 1)
             
+            # Calculate lattice-based shift distances
+            # Project each lattice vector onto the plane basis to find which provides the proper periodicity
+            # For a general plane, we need to find the lattice vectors that give the minimal periodic shifts
+            lattice = structure['lattice']
+            
+            # Project all three lattice vectors onto the plane basis
+            lattice_proj_e = np.array([np.dot(lattice[i], basis1) for i in range(3)])
+            lattice_proj_f = np.array([np.dot(lattice[i], basis2) for i in range(3)])
+            
+            # Find the lattice vector(s) that provide the minimal periodic shift along e and f
+            # We want non-zero projections that represent the periodicity in the plane
+            # The proper shift is the smallest non-zero projection magnitude for each axis
+            
+            # For e-axis: find the smallest non-zero absolute projection
+            e_shifts = [abs(proj) for proj in lattice_proj_e if abs(proj) > 1e-6]
+            e_shift = min(e_shifts) if e_shifts else (projections[:, 0].max() - projections[:, 0].min())
+            
+            # For f-axis: find the smallest non-zero absolute projection
+            f_shifts = [abs(proj) for proj in lattice_proj_f if abs(proj) > 1e-6]
+            f_shift = min(f_shifts) if f_shifts else (projections[:, 1].max() - projections[:, 1].min())
+            
+            lattice_shifts = (e_shift, f_shift)
+            
             # Generate the plotting script
-            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles)
+            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts)
             
             print()
             print(f"Matplotlib plotting script generated: {script_file}")

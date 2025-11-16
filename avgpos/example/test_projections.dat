@@ -1,0 +1,8 @@
+# e f g
+# Projections onto plane perpendicular to direction vector
+# e, f: 2D coordinates on plane
+# g: average_position - distance_from_plane
+1.661672 0.959367 -4.903552
+0.000000 0.000000 4.905384
+0.000000 0.000000 1.569472
+1.661672 0.959367 -1.571304
