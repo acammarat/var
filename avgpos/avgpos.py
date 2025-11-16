@@ -546,59 +546,6 @@ def calculate_plane_projections(structure, atom_indices, direction_vector, avera
     return result, basis1, basis2
 
 
-def extract_profile_along_x(projections, y_value, num_points=200):
-    """
-    Extract a 1D profile along x (e-axis) at a specified y (f-axis) coordinate.
-    Uses actual data points without interpolation. If the exact y value is not
-    present in the data, uses the closest y value and prints a warning.
-    
-    Parameters:
-    -----------
-    projections : numpy.ndarray
-        Nx3 array where each row contains [e, f, g]
-    y_value : float
-        The y (f-axis) coordinate at which to extract the profile
-    num_points : int, optional
-        Number of points to sample along x (default: 200, ignored - kept for compatibility)
-        
-    Returns:
-    --------
-    tuple : (x_coords, g_values, actual_y_used)
-        - x_coords: array of x (e-axis) coordinates from actual data
-        - g_values: array of g values from actual data (no interpolation)
-        - actual_y_used: the actual y value used (may differ from requested y_value)
-    """
-    e_coords = projections[:, 0]
-    f_coords = projections[:, 1]
-    g_coords = projections[:, 2]
-    
-    # Find unique y values in the data
-    unique_y = np.unique(f_coords)
-    
-    # Find the closest y value to the requested one
-    closest_idx = np.argmin(np.abs(unique_y - y_value))
-    actual_y = unique_y[closest_idx]
-    
-    # Check if we're using a different y value than requested
-    # Use a tolerance of 1e-6 which is appropriate for values printed with 6 decimal places
-    if abs(actual_y - y_value) > 1e-6:
-        print(f"Warning: Requested y value {y_value:.6f} not found in data.")
-        print(f"         Using closest available y value: {actual_y:.6f}")
-    
-    # Extract all points with the selected y value
-    # Use same tolerance for consistency
-    mask = np.abs(f_coords - actual_y) < 1e-6
-    x_profile = e_coords[mask]
-    g_profile = g_coords[mask]
-    
-    # Sort by x coordinate
-    sort_idx = np.argsort(x_profile)
-    x_profile = x_profile[sort_idx]
-    g_profile = g_profile[sort_idx]
-    
-    return x_profile, g_profile, actual_y
-
-
 def main():
     parser = argparse.ArgumentParser(
         description='Calculate average position and standard deviation of selected atoms '
@@ -652,9 +599,6 @@ Examples:
                         help='Flip the sign of g values in the plane projection output. '
                              'By default, g = average_position - distance_along_direction. '
                              'With this flag, g = distance_along_direction - average_position.')
-    parser.add_argument('--profile-y', type=float, default=None,
-                        help='Extract 1D profile along x (e-axis) at the specified y (f-axis) coordinate. '
-                             'Creates a data file with x and g values. Requires both -o and --plot.')
     
     args = parser.parse_args()
     
@@ -840,37 +784,7 @@ Examples:
                 print(f"  (with {replicate[0]}x{replicate[1]} replication)")
             if args.no_circles and not args.labels:
                 print(f"  (without atom position circles)")
-            
-            # Extract profile along x at specified y if requested
-            if args.profile_y is not None:
-                profile_file = f"{base_name}_profile.dat"
-                
-                # Extract the profile
-                x_profile, g_profile, actual_y = extract_profile_along_x(projections, args.profile_y)
-                
-                # Save profile to file
-                with open(profile_file, 'w') as f:
-                    f.write('# x g\n')
-                    f.write('# Profile along x (e-axis) at specified y (f-axis) coordinate\n')
-                    f.write(f'# y coordinate requested: {args.profile_y:.6f}\n')
-                    f.write(f'# y coordinate used: {actual_y:.6f}\n')
-                    f.write('# x: coordinate along e-axis\n')
-                    f.write('# g: g value from actual data (no interpolation)\n')
-                    for x, g in zip(x_profile, g_profile):
-                        f.write(f"{x:.6f} {g:.6f}\n")
-                
-                print()
-                print(f"Profile data written to: {profile_file}")
-                print(f"  Profile extracted along x at y = {actual_y:.6f}")
-                if abs(actual_y - args.profile_y) > 1e-6:
-                    print(f"  (requested y = {args.profile_y:.6f}, using closest available)")
-                print(f"  Columns: x, g")
-        else:
-            # --plot not specified but -o is specified
-            if args.profile_y is not None:
-                print()
-                print("Warning: --profile-y flag requires both -o/--output and --plot to be specified. Ignoring.")
-    elif args.plot or args.labels or args.vrange or args.label_at_projection or args.profile_y is not None:
+    elif args.plot or args.labels or args.vrange or args.label_at_projection:
         print()
         if args.plot or args.labels:
             print("Warning: --plot and --labels flags require -o/--output to be specified. Ignoring.")
@@ -878,8 +792,6 @@ Examples:
             print("Warning: --vrange flag requires both -o/--output and --plot to be specified. Ignoring.")
         if args.label_at_projection:
             print("Warning: --label-at-projection flag requires -o/--output, --plot, and --labels to be specified. Ignoring.")
-        if args.profile_y is not None:
-            print("Warning: --profile-y flag requires both -o/--output and --plot to be specified. Ignoring.")
     
     return 0
 
