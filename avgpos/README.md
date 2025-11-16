@@ -65,6 +65,7 @@ python3 avgpos.py
 - `--label-at-projection`: Position labels at the exact atom projection coordinates instead of offset from circles. When used, circles are hidden and labels are centered at the projection position. Only effective when `--labels` is used. Requires both `-o` and `--plot`.
 - `--vrange`: Specify color map range as "vmin,vmax" (e.g., `--vrange=-5,5` or `--vrange=0,10`). If not specified, uses data min/max. Requires both `-o` and `--plot`.
 - `--flip-g`: Flip the sign of g values in the plane projection output. By default, g = average_position - distance_along_direction. With this flag, g = distance_along_direction - average_position.
+- `--gwyddion <filename.gsf>`: Export data to Gwyddion Simple Field (GSF) format. Requires `-o` to be specified. The GSF file can be opened in Gwyddion software (https://gwyddion.net/) for visualization and analysis of the (e,f,g) projection data.
 
 ### Examples
 
@@ -169,6 +170,21 @@ Calculate average position with flipped g values:
 # instead of the default: average_position - distance_along_direction
 ```
 
+Export plane projection data to Gwyddion format:
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --gwyddion projections.gsf
+# Creates a GSF file that can be opened in Gwyddion software
+# The GSF file contains an interpolated grid of the (e,f,g) projection data
+```
+
+Export plane projection data to both text and Gwyddion formats with visualization:
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --gwyddion projections.gsf
+# Creates projections.dat (text), projections.gsf (Gwyddion), and projections_plot.py (matplotlib script)
+# Run: python3 projections_plot.py to generate the heatmap visualization
+# Open projections.gsf in Gwyddion for advanced analysis
+```
+
 ## Output
 
 ### Standard Output
@@ -206,6 +222,25 @@ When the `--plot` flag is used along with `-o`, the tool generates a Python scri
 - To generate the plot, run: `python3 <script_file>`
 
 **Requirements**: Matplotlib and SciPy must be installed on your system to generate the visualization.
+
+### Gwyddion GSF Output File (optional)
+
+When the `--gwyddion` option is specified along with `-o`, the tool generates a Gwyddion Simple Field (GSF) file:
+- **File format**: Gwyddion Simple Field (GSF) version 1.0
+- **Structure**: Text header followed by binary data section
+- **Content**: Interpolated regular grid of the (e,f,g) projection data
+  - The scattered (e,f) projection points are interpolated onto a regular grid using Radial Basis Function (RBF) interpolation
+  - Grid resolution is automatically determined based on data point density (typically 100-200 points per dimension)
+  - If multiple atoms project to the same (e,f) location, their g values are averaged
+- **Usage**: Can be opened directly in Gwyddion software (https://gwyddion.net/) for:
+  - 3D visualization of the projection data
+  - Advanced analysis tools (line profiles, statistical analysis, etc.)
+  - Export to various image formats
+  - Comparison with other SPM or surface data
+
+**Requirements**: SciPy must be installed on your system to generate GSF files.
+
+**Note**: The GSF format is designed for Scanning Probe Microscopy (SPM) data but works well for any 2D scalar field data like the plane projections from avgpos.
 
 ## Example Output
 
