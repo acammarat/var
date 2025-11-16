@@ -442,7 +442,7 @@ print(f"Plot saved to {output_image}")
         pass  # Ignore if chmod fails (e.g., on Windows)
 
 
-def calculate_plane_projections(structure, atom_indices, direction_vector, average_position):
+def calculate_plane_projections(structure, atom_indices, direction_vector, average_position, flip_g=False):
     """
     Calculate orthogonal projections of atoms onto a plane perpendicular to 
     the direction vector and passing through the average position.
@@ -457,6 +457,8 @@ def calculate_plane_projections(structure, atom_indices, direction_vector, avera
         Unit vector defining the direction (normal to the plane)
     average_position : float
         Average position along the direction (defines plane location)
+    flip_g : bool, optional
+        If True, flip the sign of g (default: False)
         
     Returns:
     --------
@@ -464,6 +466,7 @@ def calculate_plane_projections(structure, atom_indices, direction_vector, avera
         - projections: Nx3 array where each row contains [e, f, g]
             - e, f: 2D coordinates of the projection on the plane
             - g: average_position minus the distance of the atom from the plane
+                 (or the opposite if flip_g=True)
         - basis1: First basis vector of the plane (unit vector)
         - basis2: Second basis vector of the plane (unit vector)
     """
@@ -507,7 +510,10 @@ def calculate_plane_projections(structure, atom_indices, direction_vector, avera
     # we have: g = average_position - abs(signed_distance) if we want actual distance
     # But the requirement says: "average_position minus the distance of the atom from the plane"
     # which could mean: average_position - distance_along_dir = -signed_distances
-    g_coords = -signed_distances
+    if flip_g:
+        g_coords = signed_distances
+    else:
+        g_coords = -signed_distances
     
     # Combine into Nx3 array
     result = np.column_stack((e_coords, f_coords, g_coords))
@@ -560,6 +566,10 @@ Examples:
                         help='Specify color map range as "vmin,vmax" (e.g., --vrange=-5,5 or --vrange=0,10). '
                              'If not specified, uses data min/max. Requires both -o and --plot. '
                              'Useful for comparing multiple plots with consistent color scales.')
+    parser.add_argument('--flip-g', action='store_true',
+                        help='Flip the sign of g values in the plane projection output. '
+                             'By default, g = average_position - distance_along_direction. '
+                             'With this flag, g = distance_along_direction - average_position.')
     
     args = parser.parse_args()
     
@@ -630,10 +640,11 @@ Examples:
     # Calculate and write plane projections if output file is specified
     if args.output:
         projections, basis1, basis2 = calculate_plane_projections(
-            structure, atom_indices, direction_vector, average
+            structure, atom_indices, direction_vector, average, flip_g=args.flip_g
         )
         
         # Get atom labels if requested
+        g_description = 'distance_from_plane - average_position' if args.flip_g else 'average_position - distance_from_plane'
         if args.labels:
             labels = get_atom_labels(structure, atom_indices, args.labels)
             # Create a combined array with projections and labels
@@ -642,7 +653,7 @@ Examples:
                 f.write('# e f g label\n')
                 f.write('# Projections onto plane perpendicular to direction vector\n')
                 f.write('# e, f: 2D coordinates on plane\n')
-                f.write('# g: average_position - distance_from_plane\n')
+                f.write(f'# g: {g_description}\n')
                 f.write('# label: atom type and ID (e.g., Ti1, O2)\n')
                 for i, label in enumerate(labels):
                     f.write(f"{projections[i, 0]:.6f} {projections[i, 1]:.6f} {projections[i, 2]:.6f} {label}\n")
@@ -653,9 +664,9 @@ Examples:
         else:
             # Write to file without labels
             np.savetxt(args.output, projections, fmt='%.6f', 
-                       header='e f g\nProjections onto plane perpendicular to direction vector\n'
-                              'e, f: 2D coordinates on plane\n'
-                              'g: average_position - distance_from_plane',
+                       header=f'e f g\nProjections onto plane perpendicular to direction vector\n'
+                              f'e, f: 2D coordinates on plane\n'
+                              f'g: {g_description}',
                        comments='# ')
             
             print()
@@ -663,7 +674,10 @@ Examples:
             print(f"  Columns: e, f, g")
         
         print(f"  e, f: 2D coordinates of atom projection on plane")
-        print(f"  g: signed distance from plane (average_position - atom_distance)")
+        if args.flip_g:
+            print(f"  g: signed distance from plane (atom_distance - average_position) [flipped]")
+        else:
+            print(f"  g: signed distance from plane (average_position - atom_distance)")
         
         # Generate matplotlib plot script if requested
         if args.plot:
