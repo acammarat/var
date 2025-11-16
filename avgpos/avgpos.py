@@ -580,12 +580,14 @@ def extract_profile_along_x(projections, y_value, num_points=200):
     actual_y = unique_y[closest_idx]
     
     # Check if we're using a different y value than requested
-    if abs(actual_y - y_value) > 1e-10:
+    # Use a tolerance of 1e-6 which is appropriate for values printed with 6 decimal places
+    if abs(actual_y - y_value) > 1e-6:
         print(f"Warning: Requested y value {y_value:.6f} not found in data.")
         print(f"         Using closest available y value: {actual_y:.6f}")
     
     # Extract all points with the selected y value
-    mask = np.abs(f_coords - actual_y) < 1e-10
+    # Use same tolerance for consistency
+    mask = np.abs(f_coords - actual_y) < 1e-6
     x_profile = e_coords[mask]
     g_profile = g_coords[mask]
     
@@ -860,7 +862,7 @@ Examples:
                 print()
                 print(f"Profile data written to: {profile_file}")
                 print(f"  Profile extracted along x at y = {actual_y:.6f}")
-                if abs(actual_y - args.profile_y) > 1e-10:
+                if abs(actual_y - args.profile_y) > 1e-6:
                     print(f"  (requested y = {args.profile_y:.6f}, using closest available)")
                 print(f"  Columns: x, g")
         else:
