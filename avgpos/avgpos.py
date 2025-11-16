@@ -239,7 +239,7 @@ def get_atom_labels(structure, atom_indices, label_format='both'):
     return labels
 
 
-def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False, lattice_shifts=None):
+def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False, lattice_shifts=None, label_no_box=False):
     """
     Generate a Python script using matplotlib to plot the plane projection data as a heatmap.
     
@@ -260,6 +260,8 @@ def generate_plot_script(data_file, script_file, output_image='heatmap.png', wit
     lattice_shifts : tuple or None
         Tuple of (e_shift, f_shift) representing the periodic shift distances based on lattice vectors.
         If None, uses the data range for shifts (legacy behavior).
+    label_no_box : bool
+        Whether to show labels without a background box (only when with_labels is True)
     """
     script_content = f"""#!/usr/bin/env python3
 \"\"\"
@@ -387,7 +389,17 @@ ax.set_ylabel('y (Å)', fontsize=12)
 """
     
     if with_labels:
-        script_content += f"""
+        if label_no_box:
+            script_content += f"""
+# Add atom labels without background box (already replicated above if needed)
+if has_labels:
+    for i in range(len(e)):
+        ax.annotate(labels[i], (e[i], f[i]), 
+                    xytext=(5, 5), textcoords='offset points',
+                    fontsize=10, fontweight='bold', color='black')
+"""
+        else:
+            script_content += f"""
 # Add atom labels (already replicated above if needed)
 if has_labels:
     for i in range(len(e)):
@@ -536,6 +548,8 @@ Examples:
                         help='Replicate the plot along e and f axes (format: "ne,nf", e.g., "2.5,3" for 2.5x3 replication)')
     parser.add_argument('--no-circles', action='store_true',
                         help='Hide circles representing atom positions in the plot (only when --labels is not used)')
+    parser.add_argument('--label-no-box', action='store_true',
+                        help='Show labels without background box in the plot (only when --labels is used)')
     
     args = parser.parse_args()
     
@@ -683,14 +697,15 @@ Examples:
             lattice_shifts = (e_shift, f_shift)
             
             # Generate the plotting script
-            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts)
+            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box)
             
             print()
             print(f"Matplotlib plotting script generated: {script_file}")
             print(f"To create the heatmap, run: python3 {script_file}")
             print(f"Output image will be: {image_file}")
             if args.labels:
-                print(f"  (with atom labels)")
+                label_style = " without box" if args.label_no_box else ""
+                print(f"  (with atom labels{label_style})")
             if replicate != (1, 1):
                 print(f"  (with {replicate[0]}x{replicate[1]} replication)")
             if args.no_circles and not args.labels:
