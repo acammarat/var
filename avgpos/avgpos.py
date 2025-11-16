@@ -549,7 +549,8 @@ def calculate_plane_projections(structure, atom_indices, direction_vector, avera
 def extract_profile_along_x(projections, y_value, num_points=200):
     """
     Extract a 1D profile along x (e-axis) at a specified y (f-axis) coordinate.
-    Uses RBF interpolation to get g values along the line.
+    Uses actual data points without interpolation. If the exact y value is not
+    present in the data, uses the closest y value and prints a warning.
     
     Parameters:
     -----------
@@ -558,43 +559,42 @@ def extract_profile_along_x(projections, y_value, num_points=200):
     y_value : float
         The y (f-axis) coordinate at which to extract the profile
     num_points : int, optional
-        Number of points to sample along x (default: 200)
+        Number of points to sample along x (default: 200, ignored - kept for compatibility)
         
     Returns:
     --------
-    tuple : (x_coords, g_values)
-        - x_coords: array of x (e-axis) coordinates
-        - g_values: array of interpolated g values at each x coordinate
+    tuple : (x_coords, g_values, actual_y_used)
+        - x_coords: array of x (e-axis) coordinates from actual data
+        - g_values: array of g values from actual data (no interpolation)
+        - actual_y_used: the actual y value used (may differ from requested y_value)
     """
-    from scipy.interpolate import Rbf
-    
     e_coords = projections[:, 0]
     f_coords = projections[:, 1]
     g_coords = projections[:, 2]
     
-    # Determine the range of x coordinates
-    e_min, e_max = e_coords.min(), e_coords.max()
+    # Find unique y values in the data
+    unique_y = np.unique(f_coords)
     
-    # Create x coordinates along the profile line
-    x_profile = np.linspace(e_min, e_max, num_points)
+    # Find the closest y value to the requested one
+    closest_idx = np.argmin(np.abs(unique_y - y_value))
+    actual_y = unique_y[closest_idx]
     
-    # Create y coordinates (all at the specified y_value)
-    y_profile = np.full(num_points, y_value)
+    # Check if we're using a different y value than requested
+    if abs(actual_y - y_value) > 1e-10:
+        print(f"Warning: Requested y value {y_value:.6f} not found in data.")
+        print(f"         Using closest available y value: {actual_y:.6f}")
     
-    # Use Radial Basis Function interpolation to get g values
-    # Try thin_plate first, fall back to multiquadric, then linear
-    try:
-        rbf = Rbf(e_coords, f_coords, g_coords, function='thin_plate', smooth=1e-10)
-        g_profile = rbf(x_profile, y_profile)
-    except:
-        try:
-            rbf = Rbf(e_coords, f_coords, g_coords, function='multiquadric', smooth=1e-10)
-            g_profile = rbf(x_profile, y_profile)
-        except:
-            rbf = Rbf(e_coords, f_coords, g_coords, function='linear', smooth=1e-8)
-            g_profile = rbf(x_profile, y_profile)
+    # Extract all points with the selected y value
+    mask = np.abs(f_coords - actual_y) < 1e-10
+    x_profile = e_coords[mask]
+    g_profile = g_coords[mask]
     
-    return x_profile, g_profile
+    # Sort by x coordinate
+    sort_idx = np.argsort(x_profile)
+    x_profile = x_profile[sort_idx]
+    g_profile = g_profile[sort_idx]
+    
+    return x_profile, g_profile, actual_y
 
 
 def main():
@@ -844,21 +844,24 @@ Examples:
                 profile_file = f"{base_name}_profile.dat"
                 
                 # Extract the profile
-                x_profile, g_profile = extract_profile_along_x(projections, args.profile_y)
+                x_profile, g_profile, actual_y = extract_profile_along_x(projections, args.profile_y)
                 
                 # Save profile to file
                 with open(profile_file, 'w') as f:
                     f.write('# x g\n')
                     f.write('# Profile along x (e-axis) at specified y (f-axis) coordinate\n')
-                    f.write(f'# y coordinate: {args.profile_y:.6f}\n')
+                    f.write(f'# y coordinate requested: {args.profile_y:.6f}\n')
+                    f.write(f'# y coordinate used: {actual_y:.6f}\n')
                     f.write('# x: coordinate along e-axis\n')
-                    f.write('# g: interpolated g value from plane projection\n')
+                    f.write('# g: g value from actual data (no interpolation)\n')
                     for x, g in zip(x_profile, g_profile):
                         f.write(f"{x:.6f} {g:.6f}\n")
                 
                 print()
                 print(f"Profile data written to: {profile_file}")
-                print(f"  Profile extracted along x at y = {args.profile_y:.6f}")
+                print(f"  Profile extracted along x at y = {actual_y:.6f}")
+                if abs(actual_y - args.profile_y) > 1e-10:
+                    print(f"  (requested y = {args.profile_y:.6f}, using closest available)")
                 print(f"  Columns: x, g")
         else:
             # --plot not specified but -o is specified
