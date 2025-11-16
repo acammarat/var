@@ -65,6 +65,7 @@ python3 avgpos.py
 - `--label-at-projection`: Position labels at the exact atom projection coordinates instead of offset from circles. When used, circles are hidden and labels are centered at the projection position. Only effective when `--labels` is used. Requires both `-o` and `--plot`.
 - `--vrange`: Specify color map range as "vmin,vmax" (e.g., `--vrange=-5,5` or `--vrange=0,10`). If not specified, uses data min/max. Requires both `-o` and `--plot`.
 - `--flip-g`: Flip the sign of g values in the plane projection output. By default, g = average_position - distance_along_direction. With this flag, g = distance_along_direction - average_position.
+- `--profile-y`: Extract 1D profile along x (e-axis) at the specified y (f-axis) coordinate. Creates a data file with x and g values. Requires both `-o` and `--plot`.
 
 ### Examples
 
@@ -169,6 +170,14 @@ Calculate average position with flipped g values:
 # instead of the default: average_position - distance_along_direction
 ```
 
+Extract 1D profile along x at a specific y coordinate:
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --profile-y=0.5
+# Then run: python3 projections_plot.py
+# Creates projections_profile.dat with x and g values at y=0.5
+# Useful for analyzing variation along a specific line in the plane
+```
+
 ## Output
 
 ### Standard Output
@@ -206,6 +215,15 @@ When the `--plot` flag is used along with `-o`, the tool generates a Python scri
 - To generate the plot, run: `python3 <script_file>`
 
 **Requirements**: Matplotlib and SciPy must be installed on your system to generate the visualization.
+
+### Profile Data File (optional)
+
+When the `--profile-y` flag is used along with `-o` and `--plot`, the tool generates a 1D profile data file containing:
+- **Profile file**: Named as `<output_basename>_profile.dat`
+- **Column 1 (x)**: x coordinate along the e-axis
+- **Column 2 (g)**: Interpolated g value at the specified y coordinate
+- The profile is extracted using the same RBF interpolation as the heatmap visualization
+- This is useful for analyzing variation along a specific line in the plane projection
 
 ## Example Output
 
