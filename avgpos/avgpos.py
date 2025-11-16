@@ -239,7 +239,7 @@ def get_atom_labels(structure, atom_indices, label_format='both'):
     return labels
 
 
-def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False, lattice_shifts=None, label_no_box=False):
+def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False, lattice_shifts=None, label_no_box=False, vrange=None):
     """
     Generate a Python script using matplotlib to plot the plane projection data as a heatmap.
     
@@ -262,6 +262,8 @@ def generate_plot_script(data_file, script_file, output_image='heatmap.png', wit
         If None, uses the data range for shifts (legacy behavior).
     label_no_box : bool
         Whether to show labels without a background box (only when with_labels is True)
+    vrange : tuple or None
+        Tuple of (vmin, vmax) to specify the color map range. If None, uses data min/max (default).
     """
     script_content = f"""#!/usr/bin/env python3
 \"\"\"
@@ -357,8 +359,12 @@ except:
         rbf = Rbf(e, f, g, function='linear', smooth=1e-8)
         g_interp = rbf(e_mesh, f_mesh)
 
-# Determine color range from actual data values (not interpolated)
-vmin, vmax = g.min(), g.max()
+# Determine color range from actual data values (not interpolated) or use custom range
+vrange = {vrange}
+if vrange is not None:
+    vmin, vmax = vrange[0], vrange[1]
+else:
+    vmin, vmax = g.min(), g.max()
 
 # Create figure and axis
 fig, ax = plt.subplots(figsize=(10, 8))
@@ -550,6 +556,10 @@ Examples:
                         help='Hide circles representing atom positions in the plot (only when --labels is not used)')
     parser.add_argument('--label-no-box', action='store_true',
                         help='Show labels without background box in the plot (only when --labels is used)')
+    parser.add_argument('--vrange', type=str, default=None,
+                        help='Specify color map range as "vmin,vmax" (e.g., --vrange=-5,5 or --vrange=0,10). '
+                             'If not specified, uses data min/max. Requires both -o and --plot. '
+                             'Useful for comparing multiple plots with consistent color scales.')
     
     args = parser.parse_args()
     
@@ -673,6 +683,22 @@ Examples:
                 print(f"Warning: Invalid replicate format '{args.replicate}'. Using default 1,1")
                 replicate = (1, 1)
             
+            # Parse vrange argument
+            vrange = None
+            if args.vrange:
+                try:
+                    vrange_parts = args.vrange.split(',')
+                    if len(vrange_parts) != 2:
+                        raise ValueError("vrange must have exactly 2 values")
+                    vmin = float(vrange_parts[0])
+                    vmax = float(vrange_parts[1])
+                    if vmin >= vmax:
+                        raise ValueError("vmin must be less than vmax")
+                    vrange = (vmin, vmax)
+                except (ValueError, IndexError) as e:
+                    print(f"Warning: Invalid vrange format '{args.vrange}': {e}. Using data min/max")
+                    vrange = None
+            
             # Calculate lattice-based shift distances
             # Project each lattice vector onto the plane basis to find which provides the proper periodicity
             # For a general plane, we need to find the lattice vectors that give the minimal periodic shifts
@@ -697,12 +723,14 @@ Examples:
             lattice_shifts = (e_shift, f_shift)
             
             # Generate the plotting script
-            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box)
+            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box, vrange)
             
             print()
             print(f"Matplotlib plotting script generated: {script_file}")
             print(f"To create the heatmap, run: python3 {script_file}")
             print(f"Output image will be: {image_file}")
+            if vrange:
+                print(f"  (with custom color range: {vrange[0]} to {vrange[1]})")
             if args.labels:
                 label_style = " without box" if args.label_no_box else ""
                 print(f"  (with atom labels{label_style})")
@@ -710,9 +738,12 @@ Examples:
                 print(f"  (with {replicate[0]}x{replicate[1]} replication)")
             if args.no_circles and not args.labels:
                 print(f"  (without atom position circles)")
-    elif args.plot or args.labels:
+    elif args.plot or args.labels or args.vrange:
         print()
-        print("Warning: --plot and --labels flags require -o/--output to be specified. Ignoring.")
+        if args.plot or args.labels:
+            print("Warning: --plot and --labels flags require -o/--output to be specified. Ignoring.")
+        if args.vrange:
+            print("Warning: --vrange flag requires both -o/--output and --plot to be specified. Ignoring.")
     
     return 0
 
