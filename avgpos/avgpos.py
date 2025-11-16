@@ -15,6 +15,7 @@ the Free Software Foundation, either version 3 of the License, or
 import sys
 import numpy as np
 import argparse
+import struct
 
 
 def read_poscar(filename):
@@ -546,6 +547,137 @@ def calculate_plane_projections(structure, atom_indices, direction_vector, avera
     return result, basis1, basis2
 
 
+def write_gwyddion_gsf(filename, projections):
+    """
+    Write plane projection data to Gwyddion Simple Field (GSF) format.
+    
+    The GSF format is used by Gwyddion software for SPM data visualization.
+    
+    Parameters:
+    -----------
+    filename : str
+        Path to the output GSF file
+    projections : numpy.ndarray
+        Nx3 array where each row contains [e, f, g]
+        - e, f: 2D coordinates of the projection on the plane
+        - g: signed distance from plane (data values)
+        
+    Notes:
+    ------
+    GSF format structure:
+    - Text header with key-value pairs (each line: "Key = Value\\n")
+    - Header terminated by 4 null bytes (\\x00\\x00\\x00\\x00)
+    - Binary data section: 4-byte floats in row-major order
+    
+    The function creates a regular grid by interpolating the scattered (e,f,g) data.
+    Grid resolution is automatically determined based on data point density.
+    
+    Note: If multiple atoms project to the same (e,f) location, their g values are averaged.
+    """
+    from scipy.interpolate import Rbf
+    
+    # Extract e, f, g coordinates
+    e_coords = projections[:, 0]
+    f_coords = projections[:, 1]
+    g_coords = projections[:, 2]
+    
+    # Handle duplicate (e,f) points by averaging their g values
+    # This is necessary because multiple atoms can project to the same plane location
+    unique_points = {}
+    for i in range(len(e_coords)):
+        key = (e_coords[i], f_coords[i])
+        if key in unique_points:
+            # Average with existing value
+            unique_points[key].append(g_coords[i])
+        else:
+            unique_points[key] = [g_coords[i]]
+    
+    # Create arrays with unique points and averaged g values
+    e_unique = []
+    f_unique = []
+    g_unique = []
+    for (e, f), g_values in unique_points.items():
+        e_unique.append(e)
+        f_unique.append(f)
+        g_unique.append(np.mean(g_values))
+    
+    e_unique = np.array(e_unique)
+    f_unique = np.array(f_unique)
+    g_unique = np.array(g_unique)
+    
+    # Determine the bounding box
+    e_min, e_max = e_unique.min(), e_unique.max()
+    f_min, f_max = f_unique.min(), f_unique.max()
+    
+    # Determine grid resolution based on data density
+    # Use a reasonable resolution that captures the data well
+    n_points = len(e_unique)
+    # Target approximately 100-200 grid points per dimension for reasonable resolution
+    target_points = max(100, min(200, int(np.sqrt(n_points) * 20)))
+    
+    # Calculate aspect ratio to maintain proportions
+    e_range = e_max - e_min if e_max > e_min else 1.0
+    f_range = f_max - f_min if f_max > f_min else 1.0
+    aspect_ratio = f_range / e_range
+    
+    # Adjust resolution to maintain aspect ratio
+    xres = target_points
+    yres = max(2, int(target_points * aspect_ratio))
+    
+    # Create regular grid
+    e_grid = np.linspace(e_min, e_max, xres)
+    f_grid = np.linspace(f_min, f_max, yres)
+    e_mesh, f_mesh = np.meshgrid(e_grid, f_grid)
+    
+    # Use Radial Basis Function interpolation which handles scattered data well
+    # This is similar to what's used in the plotting script
+    try:
+        rbf = Rbf(e_unique, f_unique, g_unique, function='thin_plate', smooth=1e-10)
+        g_grid = rbf(e_mesh, f_mesh)
+    except:
+        # Fall back to multiquadric if thin_plate fails
+        try:
+            rbf = Rbf(e_unique, f_unique, g_unique, function='multiquadric', smooth=1e-10)
+            g_grid = rbf(e_mesh, f_mesh)
+        except:
+            # Last resort: use linear with small smoothing
+            rbf = Rbf(e_unique, f_unique, g_unique, function='linear', smooth=1e-8)
+            g_grid = rbf(e_mesh, f_mesh)
+    
+    # Physical dimensions (in Angstroms)
+    xreal = e_range
+    yreal = f_range
+    
+    # Create GSF header
+    header_lines = [
+        "Gwyddion Simple Field 1.0",
+        f"XRes = {xres}",
+        f"YRes = {yres}",
+        f"XReal = {xreal:.10e}",
+        f"YReal = {yreal:.10e}",
+        f"XOffset = {e_min:.10e}",
+        f"YOffset = {f_min:.10e}",
+        "XYUnits = m",  # Angstroms, but GSF typically uses meters
+        "ZUnits = m",   # Angstroms, but GSF typically uses meters
+        "Title = Plane projection data from avgpos",
+    ]
+    
+    # Write GSF file
+    with open(filename, 'wb') as f:
+        # Write header (text)
+        for line in header_lines:
+            f.write(line.encode('utf-8'))
+            f.write(b'\n')
+        
+        # Write header terminator (4 null bytes)
+        f.write(b'\x00\x00\x00\x00')
+        
+        # Write binary data in row-major order (flatten in C order)
+        # GSF expects 4-byte floats (single precision)
+        data_flat = g_grid.flatten(order='C').astype(np.float32)
+        f.write(data_flat.tobytes())
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Calculate average position and standard deviation of selected atoms '
@@ -599,6 +731,11 @@ Examples:
                         help='Flip the sign of g values in the plane projection output. '
                              'By default, g = average_position - distance_along_direction. '
                              'With this flag, g = distance_along_direction - average_position.')
+    parser.add_argument('--gwyddion', type=str, default=None,
+                        help='Export data to Gwyddion Simple Field (GSF) format. '
+                             'Specify the output .gsf filename. Requires -o to be specified. '
+                             'The GSF file can be opened in Gwyddion software (https://gwyddion.net/) '
+                             'for visualization and analysis.')
     
     args = parser.parse_args()
     
@@ -784,7 +921,22 @@ Examples:
                 print(f"  (with {replicate[0]}x{replicate[1]} replication)")
             if args.no_circles and not args.labels:
                 print(f"  (without atom position circles)")
-    elif args.plot or args.labels or args.vrange or args.label_at_projection:
+        
+        # Export to Gwyddion format if requested
+        if args.gwyddion:
+            try:
+                write_gwyddion_gsf(args.gwyddion, projections)
+                print()
+                print(f"Gwyddion GSF file written to: {args.gwyddion}")
+                print(f"  This file can be opened in Gwyddion (https://gwyddion.net/)")
+                print(f"  Format: Gwyddion Simple Field (GSF)")
+                print(f"  Contains interpolated grid data from (e,f,g) projections")
+            except Exception as e:
+                print()
+                print(f"Error writing Gwyddion file: {e}")
+                import traceback
+                traceback.print_exc()
+    elif args.plot or args.labels or args.vrange or args.label_at_projection or args.gwyddion:
         print()
         if args.plot or args.labels:
             print("Warning: --plot and --labels flags require -o/--output to be specified. Ignoring.")
@@ -792,6 +944,8 @@ Examples:
             print("Warning: --vrange flag requires both -o/--output and --plot to be specified. Ignoring.")
         if args.label_at_projection:
             print("Warning: --label-at-projection flag requires -o/--output, --plot, and --labels to be specified. Ignoring.")
+        if args.gwyddion:
+            print("Warning: --gwyddion flag requires -o/--output to be specified. Ignoring.")
     
     return 0
 
