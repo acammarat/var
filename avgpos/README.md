@@ -11,8 +11,7 @@ A tool to calculate the average position and standard deviation of selected atom
   - Crystallographic lattice vectors (a, b, c)
   - Custom Miller indices [h,k,l]
 - Calculate standard deviation of positions
-- Display individual atomic positions along the selected direction
-- **NEW:** Calculate and export orthogonal projections onto a plane perpendicular to the direction vector
+- Calculate and export orthogonal projections onto a plane perpendicular to the direction vector and passing through the average position
 
 ## Requirements
 
