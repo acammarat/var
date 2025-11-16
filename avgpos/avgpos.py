@@ -549,14 +549,14 @@ def calculate_plane_projections(structure, atom_indices, direction_vector, avera
 
 def write_gwyddion_gsf(filename, projections):
     """
-    Write plane projection data to Gwyddion Simple Field (GSF) format.
+    Write plane projection data as ASCII matrix for Gwyddion.
     
-    The GSF format is used by Gwyddion software for SPM data visualization.
+    This format can be easily imported into Gwyddion and other visualization tools.
     
     Parameters:
     -----------
     filename : str
-        Path to the output GSF file
+        Path to the output file (ASCII format)
     projections : numpy.ndarray
         Nx3 array where each row contains [e, f, g]
         - e, f: 2D coordinates of the projection on the plane
@@ -564,10 +564,10 @@ def write_gwyddion_gsf(filename, projections):
         
     Notes:
     ------
-    GSF format structure:
-    - Text header with key-value pairs (each line: "Key = Value\\n")
-    - Header terminated by 4 null bytes (\\x00\\x00\\x00\\x00)
-    - Binary data section: 4-byte floats in row-major order
+    Output format:
+    - Header lines starting with '#' containing metadata
+    - Data matrix in row-major order (one row per line)
+    - Each value separated by whitespace
     
     The function creates a regular grid by interpolating the scattered (e,f,g) data
     using the exact same parameters and interpolation method as generate_plot_script.
@@ -612,38 +612,23 @@ def write_gwyddion_gsf(filename, projections):
             rbf = Rbf(e, f, g, function='linear', smooth=1e-8)
             g_grid = rbf(e_mesh, f_mesh)
     
-    # Physical dimensions (in Angstroms)
-    xreal = e_range
-    yreal = f_range
-    
-    # Create GSF header
-    header_lines = [
-        "Gwyddion Simple Field 1.0",
-        f"XRes = {xres}",
-        f"YRes = {yres}",
-        f"XReal = {xreal:.10e}",
-        f"YReal = {yreal:.10e}",
-        f"XOffset = {e_min:.10e}",
-        f"YOffset = {f_min:.10e}",
-        "XYUnits = m",  # Angstroms, but GSF typically uses meters
-        "ZUnits = m",   # Angstroms, but GSF typically uses meters
-        "Title = Plane projection data from avgpos",
-    ]
-    
-    # Write GSF file
-    with open(filename, 'wb') as f:
-        # Write header (text)
-        for line in header_lines:
-            f.write(line.encode('utf-8'))
-            f.write(b'\n')
+    # Write ASCII data matrix file
+    with open(filename, 'w') as f:
+        # Write header with metadata
+        f.write(f"# Plane projection data from avgpos - ASCII matrix format\n")
+        f.write(f"# Grid resolution: {xres} x {yres}\n")
+        f.write(f"# X range (e): {e_min:.10e} to {e_max:.10e} (width: {e_range:.10e} Å)\n")
+        f.write(f"# Y range (f): {f_min:.10e} to {f_max:.10e} (width: {f_range:.10e} Å)\n")
+        f.write(f"# Z values (g): signed distance from plane (Å)\n")
+        f.write(f"# Data format: {yres} rows x {xres} columns\n")
+        f.write(f"# Interpolation: RBF (thin_plate, smooth=1e-10)\n")
+        f.write(f"#\n")
         
-        # Write header terminator (4 null bytes)
-        f.write(b'\x00\x00\x00\x00')
-        
-        # Write binary data in row-major order (flatten in C order)
-        # GSF expects 4-byte floats (single precision)
-        data_flat = g_grid.flatten(order='C').astype(np.float32)
-        f.write(data_flat.tobytes())
+        # Write data matrix in row-major order
+        # Each row of the matrix is one line in the file
+        for i in range(yres):
+            row_values = [f"{g_grid[i, j]:.10e}" for j in range(xres)]
+            f.write(" ".join(row_values) + "\n")
 
 
 def main():
@@ -700,9 +685,9 @@ Examples:
                              'By default, g = average_position - distance_along_direction. '
                              'With this flag, g = distance_along_direction - average_position.')
     parser.add_argument('--gwyddion', type=str, default=None,
-                        help='Export data to Gwyddion Simple Field (GSF) format. '
-                             'Specify the output .gsf filename. Requires -o to be specified. '
-                             'The GSF file can be opened in Gwyddion software (https://gwyddion.net/) '
+                        help='Export data as ASCII matrix for Gwyddion. '
+                             'Specify the output filename. Requires -o to be specified. '
+                             'The ASCII matrix file can be imported into Gwyddion software (https://gwyddion.net/) '
                              'for visualization and analysis.')
     
     args = parser.parse_args()
@@ -895,10 +880,10 @@ Examples:
             try:
                 write_gwyddion_gsf(args.gwyddion, projections)
                 print()
-                print(f"Gwyddion GSF file written to: {args.gwyddion}")
-                print(f"  This file can be opened in Gwyddion (https://gwyddion.net/)")
-                print(f"  Format: Gwyddion Simple Field (GSF)")
-                print(f"  Contains interpolated grid data from (e,f,g) projections")
+                print(f"Gwyddion data matrix written to: {args.gwyddion}")
+                print(f"  This ASCII matrix file can be imported into Gwyddion (https://gwyddion.net/)")
+                print(f"  Format: ASCII matrix with metadata header")
+                print(f"  Grid: 200x200 interpolated from (e,f,g) projections")
             except Exception as e:
                 print()
                 print(f"Error writing Gwyddion file: {e}")

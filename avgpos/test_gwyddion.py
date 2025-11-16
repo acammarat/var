@@ -10,39 +10,42 @@ import subprocess
 import tempfile
 import struct
 
-def read_gsf_header(filename):
-    """Read and parse the GSF header."""
-    with open(filename, 'rb') as f:
-        # Read lines until we hit the 4 null bytes
-        header_lines = []
-        header_bytes = b''
-        
-        while True:
-            byte = f.read(1)
-            if not byte:
-                break
-            header_bytes += byte
-            
-            # Check for header terminator (4 null bytes)
-            if header_bytes.endswith(b'\x00\x00\x00\x00'):
-                # Remove the terminator
-                header_bytes = header_bytes[:-4]
-                break
-        
-        # Parse header
-        header_text = header_bytes.decode('utf-8')
-        header_dict = {}
-        for line in header_text.strip().split('\n'):
-            if '=' in line:
-                key, value = line.split('=', 1)
-                header_dict[key.strip()] = value.strip()
-        
-        # Read binary data
-        data_bytes = f.read()
-        n_floats = len(data_bytes) // 4
-        data = struct.unpack(f'{n_floats}f', data_bytes)
-        
-        return header_dict, data
+def read_ascii_matrix(filename):
+    """Read and parse the ASCII matrix file."""
+    import numpy as np
+    
+    header_dict = {}
+    data_lines = []
+    
+    with open(filename, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('#'):
+                # Parse header
+                if 'Grid resolution:' in line:
+                    # Extract XRes x YRes
+                    parts = line.split(':')[1].strip().split('x')
+                    header_dict['XRes'] = parts[0].strip()
+                    header_dict['YRes'] = parts[1].strip()
+                elif 'X range' in line:
+                    # Extract range info
+                    parts = line.split('(width:')[1].split('Å')[0].strip()
+                    header_dict['XReal'] = parts
+                elif 'Y range' in line:
+                    # Extract range info
+                    parts = line.split('(width:')[1].split('Å')[0].strip()
+                    header_dict['YReal'] = parts
+            elif line:  # Non-empty, non-comment line
+                # Parse data line
+                data_lines.append(line)
+    
+    # Parse all data values
+    data = []
+    for line in data_lines:
+        values = [float(v) for v in line.split()]
+        data.extend(values)
+    
+    return header_dict, data
 
 
 def test_gwyddion_basic():
@@ -76,11 +79,11 @@ def test_gwyddion_basic():
             print(f"FAILED: GSF file was not created: {gsf_file}")
             return False
         
-        # Read and validate GSF header
+        # Read and validate ASCII matrix file
         try:
-            header, data = read_gsf_header(gsf_file)
+            header, data = read_ascii_matrix(gsf_file)
         except Exception as e:
-            print(f"FAILED: Error reading GSF file: {e}")
+            print(f"FAILED: Error reading ASCII matrix file: {e}")
             return False
         
         # Validate required header fields
@@ -105,11 +108,11 @@ def test_gwyddion_basic():
             return False
         
         # Verify success message in output
-        if 'Gwyddion GSF file written to' not in result.stdout:
+        if 'Gwyddion data matrix written to' not in result.stdout:
             print(f"FAILED: Expected success message not found in output")
             return False
         
-        print(f"PASSED: Basic Gwyddion GSF file generation")
+        print(f"PASSED: Basic Gwyddion ASCII matrix file generation")
         print(f"  XRes: {xres}, YRes: {yres}")
         print(f"  Data points: {len(data)}")
         print(f"  File size: {os.path.getsize(gsf_file)} bytes")
@@ -191,13 +194,13 @@ def test_gwyddion_with_labels():
             print(f"FAILED: GSF file was not created: {gsf_file}")
             return False
         
-        # Read GSF file to ensure it's valid
+        # Read ASCII matrix file to ensure it's valid
         try:
-            header, data = read_gsf_header(gsf_file)
+            header, data = read_ascii_matrix(gsf_file)
             xres = int(header['XRes'])
             yres = int(header['YRes'])
         except Exception as e:
-            print(f"FAILED: Error reading GSF file: {e}")
+            print(f"FAILED: Error reading ASCII matrix file: {e}")
             return False
         
         print(f"PASSED: Gwyddion export works with --labels option")

@@ -65,7 +65,7 @@ python3 avgpos.py
 - `--label-at-projection`: Position labels at the exact atom projection coordinates instead of offset from circles. When used, circles are hidden and labels are centered at the projection position. Only effective when `--labels` is used. Requires both `-o` and `--plot`.
 - `--vrange`: Specify color map range as "vmin,vmax" (e.g., `--vrange=-5,5` or `--vrange=0,10`). If not specified, uses data min/max. Requires both `-o` and `--plot`.
 - `--flip-g`: Flip the sign of g values in the plane projection output. By default, g = average_position - distance_along_direction. With this flag, g = distance_along_direction - average_position.
-- `--gwyddion <filename.gsf>`: Export data to Gwyddion Simple Field (GSF) format. Requires `-o` to be specified. The GSF file can be opened in Gwyddion software (https://gwyddion.net/) for visualization and analysis of the (e,f,g) projection data.
+- `--gwyddion <filename>`: Export data as ASCII matrix for Gwyddion. Requires `-o` to be specified. The ASCII matrix file can be imported into Gwyddion software (https://gwyddion.net/) for visualization and analysis of the (e,f,g) projection data.
 
 ### Examples
 
@@ -172,17 +172,17 @@ Calculate average position with flipped g values:
 
 Export plane projection data to Gwyddion format:
 ```bash
-./avgpos.py POSCAR -s Se -d z -o projections.dat --gwyddion projections.gsf
-# Creates a GSF file that can be opened in Gwyddion software
-# The GSF file contains an interpolated grid of the (e,f,g) projection data
+./avgpos.py POSCAR -s Se -d z -o projections.dat --gwyddion projections.txt
+# Creates an ASCII matrix file that can be imported into Gwyddion software
+# The file contains a 200x200 interpolated grid of the (e,f,g) projection data
 ```
 
 Export plane projection data to both text and Gwyddion formats with visualization:
 ```bash
-./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --gwyddion projections.gsf
-# Creates projections.dat (text), projections.gsf (Gwyddion), and projections_plot.py (matplotlib script)
+./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --gwyddion projections.txt
+# Creates projections.dat (text), projections.txt (ASCII matrix), and projections_plot.py (matplotlib script)
 # Run: python3 projections_plot.py to generate the heatmap visualization
-# Open projections.gsf in Gwyddion for advanced analysis
+# Import projections.txt into Gwyddion for advanced analysis
 ```
 
 ## Output
@@ -223,25 +223,28 @@ When the `--plot` flag is used along with `-o`, the tool generates a Python scri
 
 **Requirements**: Matplotlib and SciPy must be installed on your system to generate the visualization.
 
-### Gwyddion GSF Output File (optional)
+### Gwyddion ASCII Matrix Output File (optional)
 
-When the `--gwyddion` option is specified along with `-o`, the tool generates a Gwyddion Simple Field (GSF) file:
-- **File format**: Gwyddion Simple Field (GSF) version 1.0
-- **Structure**: Text header followed by binary data section
+When the `--gwyddion` option is specified along with `-o`, the tool generates an ASCII matrix file:
+- **File format**: ASCII text with header comments
+- **Structure**: 
+  - Header lines starting with '#' containing metadata (grid resolution, ranges, interpolation method)
+  - Data matrix: 200 rows × 200 columns of floating-point values
+  - Each row on a separate line, values separated by spaces
 - **Content**: Interpolated regular grid of the (e,f,g) projection data
   - Uses the exact same interpolation parameters as the matplotlib plot script
   - Grid resolution: 200x200 points (same as matplotlib output)
   - Radial Basis Function (RBF) interpolation with thin_plate function and smooth=1e-10
   - Handles duplicate (e,f) coordinates naturally through RBF interpolation
-- **Usage**: Can be opened directly in Gwyddion software (https://gwyddion.net/) for:
+- **Usage**: Can be imported into Gwyddion software (https://gwyddion.net/) for:
   - 3D visualization of the projection data
   - Advanced analysis tools (line profiles, statistical analysis, etc.)
   - Export to various image formats
   - Comparison with other SPM or surface data
 
-**Requirements**: SciPy must be installed on your system to generate GSF files.
+**Requirements**: SciPy must be installed on your system to generate ASCII matrix files.
 
-**Note**: The GSF format is designed for Scanning Probe Microscopy (SPM) data but works well for any 2D scalar field data like the plane projections from avgpos.
+**Note**: The ASCII matrix format is easy to read and can be imported into many visualization tools including Gwyddion, MATLAB, Origin, and others.
 
 ## Example Output
 
