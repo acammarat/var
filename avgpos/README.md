@@ -229,9 +229,10 @@ When the `--gwyddion` option is specified along with `-o`, the tool generates a 
 - **File format**: Gwyddion Simple Field (GSF) version 1.0
 - **Structure**: Text header followed by binary data section
 - **Content**: Interpolated regular grid of the (e,f,g) projection data
-  - The scattered (e,f) projection points are interpolated onto a regular grid using Radial Basis Function (RBF) interpolation
-  - Grid resolution is automatically determined based on data point density (typically 100-200 points per dimension)
-  - If multiple atoms project to the same (e,f) location, their g values are averaged
+  - Uses the exact same interpolation parameters as the matplotlib plot script
+  - Grid resolution: 200x200 points (same as matplotlib output)
+  - Radial Basis Function (RBF) interpolation with thin_plate function and smooth=1e-10
+  - Handles duplicate (e,f) coordinates naturally through RBF interpolation
 - **Usage**: Can be opened directly in Gwyddion software (https://gwyddion.net/) for:
   - 3D visualization of the projection data
   - Advanced analysis tools (line profiles, statistical analysis, etc.)

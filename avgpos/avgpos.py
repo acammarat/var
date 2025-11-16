@@ -569,79 +569,47 @@ def write_gwyddion_gsf(filename, projections):
     - Header terminated by 4 null bytes (\\x00\\x00\\x00\\x00)
     - Binary data section: 4-byte floats in row-major order
     
-    The function creates a regular grid by interpolating the scattered (e,f,g) data.
-    Grid resolution is automatically determined based on data point density.
-    
-    Note: If multiple atoms project to the same (e,f) location, their g values are averaged.
+    The function creates a regular grid by interpolating the scattered (e,f,g) data
+    using the exact same parameters and interpolation method as generate_plot_script.
     """
     from scipy.interpolate import Rbf
     
-    # Extract e, f, g coordinates
-    e_coords = projections[:, 0]
-    f_coords = projections[:, 1]
-    g_coords = projections[:, 2]
+    # Extract e, f, g coordinates (use all data points, including duplicates)
+    e = projections[:, 0]
+    f = projections[:, 1]
+    g = projections[:, 2]
     
-    # Handle duplicate (e,f) points by averaging their g values
-    # This is necessary because multiple atoms can project to the same plane location
-    unique_points = {}
-    for i in range(len(e_coords)):
-        key = (e_coords[i], f_coords[i])
-        if key in unique_points:
-            # Average with existing value
-            unique_points[key].append(g_coords[i])
-        else:
-            unique_points[key] = [g_coords[i]]
+    # Determine the range of e and f
+    e_min, e_max = e.min(), e.max()
+    f_min, f_max = f.min(), f.max()
     
-    # Create arrays with unique points and averaged g values
-    e_unique = []
-    f_unique = []
-    g_unique = []
-    for (e, f), g_values in unique_points.items():
-        e_unique.append(e)
-        f_unique.append(f)
-        g_unique.append(np.mean(g_values))
-    
-    e_unique = np.array(e_unique)
-    f_unique = np.array(f_unique)
-    g_unique = np.array(g_unique)
-    
-    # Determine the bounding box
-    e_min, e_max = e_unique.min(), e_unique.max()
-    f_min, f_max = f_unique.min(), f_unique.max()
-    
-    # Determine grid resolution based on data density
-    # Use a reasonable resolution that captures the data well
-    n_points = len(e_unique)
-    # Target approximately 100-200 grid points per dimension for reasonable resolution
-    target_points = max(100, min(200, int(np.sqrt(n_points) * 20)))
-    
-    # Calculate aspect ratio to maintain proportions
+    # Calculate range for physical dimensions
     e_range = e_max - e_min if e_max > e_min else 1.0
     f_range = f_max - f_min if f_max > f_min else 1.0
-    aspect_ratio = f_range / e_range
     
-    # Adjust resolution to maintain aspect ratio
-    xres = target_points
-    yres = max(2, int(target_points * aspect_ratio))
+    # Use the same grid resolution as generate_plot_script: 200x200
+    xres = 200
+    yres = 200
     
-    # Create regular grid
+    # Create regular grid (same as generate_plot_script)
     e_grid = np.linspace(e_min, e_max, xres)
     f_grid = np.linspace(f_min, f_max, yres)
     e_mesh, f_mesh = np.meshgrid(e_grid, f_grid)
     
-    # Use Radial Basis Function interpolation which handles scattered data well
-    # This is similar to what's used in the plotting script
+    # Use Radial Basis Function interpolation with exact same parameters as generate_plot_script
+    # This ensures interpolation passes extremely close to data points while handling duplicates
+    # smooth value is set to a tiny value to get nearly exact values at data points
     try:
-        rbf = Rbf(e_unique, f_unique, g_unique, function='thin_plate', smooth=1e-10)
+        rbf = Rbf(e, f, g, function='thin_plate', smooth=1e-10)
         g_grid = rbf(e_mesh, f_mesh)
     except:
         # Fall back to multiquadric if thin_plate fails
         try:
-            rbf = Rbf(e_unique, f_unique, g_unique, function='multiquadric', smooth=1e-10)
+            rbf = Rbf(e, f, g, function='multiquadric', smooth=1e-10)
             g_grid = rbf(e_mesh, f_mesh)
         except:
             # Last resort: use linear with small smoothing
-            rbf = Rbf(e_unique, f_unique, g_unique, function='linear', smooth=1e-8)
+            rbf = Rbf(e, f, g, function='linear', smooth=1e-8)
             g_grid = rbf(e_mesh, f_mesh)
     
     # Physical dimensions (in Angstroms)
