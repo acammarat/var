@@ -62,6 +62,7 @@ python3 avgpos.py
   - Supports non-integer replication (e.g., "2.5,3" for 2.5x3 replication)
 - `--no-circles`: Hide circles representing atom positions in the plot (only effective when `--labels` is not used)
 - `--label-no-box`: Show labels without background box in the plot (only when `--labels` is used)
+- `--label-at-projection`: Position labels at the exact atom projection coordinates instead of offset from circles. When used, circles are hidden and labels are centered at the projection position. Only effective when `--labels` is used. Requires both `-o` and `--plot`.
 - `--vrange`: Specify color map range as "vmin,vmax" (e.g., `--vrange=-5,5` or `--vrange=0,10`). If not specified, uses data min/max. Requires both `-o` and `--plot`.
 - `--flip-g`: Flip the sign of g values in the plane projection output. By default, g = average_position - distance_along_direction. With this flag, g = distance_along_direction - average_position.
 
@@ -129,6 +130,21 @@ Generate smooth heatmap without atom position circles:
 ./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --no-circles
 # Then run: python3 projections_plot.py
 # Plot will show only the smooth interpolated surface without circles
+```
+
+Generate heatmap with labels positioned at projection coordinates:
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --labels --label-at-projection
+# Then run: python3 projections_plot.py
+# Labels will be centered at the exact projection coordinates, replacing the circles
+# Useful for cleaner plots where atom identities are more important than circles
+```
+
+Generate heatmap with labels at projection coordinates without background box:
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --labels --label-at-projection --label-no-box
+# Then run: python3 projections_plot.py
+# Labels will be centered at projection coordinates without background boxes
 ```
 
 Generate heatmap with custom color map range:
