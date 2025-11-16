@@ -1,9 +1,0 @@
-# e f g label
-# Projections onto plane perpendicular to direction vector
-# e, f: 2D coordinates on plane
-# g: average_position - distance_from_plane
-# label: atom type and ID (e.g., Ti1, O2)
-1.661672 0.959367 -4.903552 Se2
-0.000000 0.000000 4.905384 Se3
-0.000000 0.000000 1.569472 Se4
-1.661672 0.959367 -1.571304 Se5
