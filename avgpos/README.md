@@ -54,7 +54,10 @@ python3 avgpos.py
   - Miller indices: `[h,k,l]` (e.g., `[1,1,0]`)
 - `-o, --output`: Output file for plane projection data (optional)
 - `--plot`: Generate Python matplotlib script for heatmap visualization (requires `-o`)
-- `--labels`: Include atom labels (element+ID, e.g., Se2, Ti4) in output and plot (requires `-o`)
+- `--labels [type|id|both]`: Include atom labels in output and plot (requires `-o`)
+  - `type`: Show only atomic type (e.g., Se, Ti)
+  - `id`: Show only atom ID from POSCAR file (e.g., 2, 4)
+  - `both` or no value: Show both type and ID (e.g., Se2, Ti4) - default
 - `--replicate`: Replicate the plot along e and f axes (format: "ne,nf", default: "1,1")
   - Supports non-integer replication (e.g., "2.5,3" for 2.5x3 replication)
 - `--no-circles`: Hide circles representing atom positions in the plot (only effective when `--labels` is not used)
@@ -99,6 +102,18 @@ Calculate average position with atom labels and generate labeled heatmap:
 # Labels will show atom type and POSCAR file ID (e.g., Se2, Se3, Ti1)
 ```
 
+Use different label formats:
+```bash
+# Show only atomic type in labels
+./avgpos.py POSCAR -s Se -d z -o projections.dat --labels type
+
+# Show only atom IDs in labels  
+./avgpos.py POSCAR -s Se -d z -o projections.dat --labels id
+
+# Show both (same as --labels without argument)
+./avgpos.py POSCAR -s Se -d z -o projections.dat --labels both
+```
+
 Generate heatmap with 2.5x3 replication along e and f axes:
 ```bash
 ./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --replicate 2.5,3
@@ -131,7 +146,10 @@ When the `-o` option is specified, the tool generates a data file containing:
 - **Column 1 (e)**: First coordinate of the atom's orthogonal projection onto the plane
 - **Column 2 (f)**: Second coordinate of the atom's orthogonal projection onto the plane  
 - **Column 3 (g)**: Signed distance from the plane (average_position - atom_distance_along_direction)
-- **Column 4 (label)**: Atom label with element type and unique ID (e.g., Ti1, O2) - only when `--labels` is used
+- **Column 4 (label)**: Atom label - only when `--labels` is used. Format depends on the label option:
+  - `--labels type`: Atomic type only (e.g., Ti, O)
+  - `--labels id`: POSCAR atom ID only (e.g., 1, 2)
+  - `--labels both`: Type and ID (e.g., Ti1, O2)
 
 The plane is perpendicular to the specified direction vector and passes through the calculated average position. The e and f coordinates form an orthonormal 2D coordinate system in the plane.
 

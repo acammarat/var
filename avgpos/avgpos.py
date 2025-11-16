@@ -192,9 +192,9 @@ def calculate_average_position(structure, atom_indices, direction_vector):
     return average, std_dev, positions_along_dir
 
 
-def get_atom_labels(structure, atom_indices):
+def get_atom_labels(structure, atom_indices, label_format='both'):
     """
-    Generate atom labels with element type and POSCAR file ID for selected atoms.
+    Generate atom labels for selected atoms based on the specified format.
     
     Parameters:
     -----------
@@ -202,10 +202,16 @@ def get_atom_labels(structure, atom_indices):
         Structure dictionary from read_poscar
     atom_indices : numpy.ndarray
         Indices of atoms (0-based)
+    label_format : str, optional
+        Format of labels: 'type' (atomic type only), 'id' (atom ID only), 
+        'both' (atomic type + ID, default)
         
     Returns:
     --------
-    list : List of atom labels (e.g., ['Ti1', 'Ti2', 'O3', 'O4'])
+    list : List of atom labels based on format
+        - 'type': ['Ti', 'Ti', 'O', 'O']
+        - 'id': ['1', '2', '3', '4']
+        - 'both': ['Ti1', 'Ti2', 'O3', 'O4']
         where the number corresponds to the atom's position in the POSCAR file (1-based)
     """
     labels = []
@@ -218,11 +224,17 @@ def get_atom_labels(structure, atom_indices):
         atom_to_element.extend([element] * count)
         idx += count
     
-    # Use the POSCAR file index (1-based) as the atom ID
+    # Generate labels based on the specified format
     for atom_idx in atom_indices:
         element = atom_to_element[atom_idx]
-        # atom_idx is 0-based, so add 1 to get POSCAR file position
-        labels.append(f"{element}{atom_idx + 1}")
+        atom_id = atom_idx + 1  # atom_idx is 0-based, so add 1 to get POSCAR file position
+        
+        if label_format == 'type':
+            labels.append(element)
+        elif label_format == 'id':
+            labels.append(str(atom_id))
+        else:  # 'both'
+            labels.append(f"{element}{atom_id}")
     
     return labels
 
@@ -515,8 +527,11 @@ Examples:
                         help='Output file for plane projection data (3 columns: e, f, g)')
     parser.add_argument('--plot', action='store_true',
                         help='Generate Python matplotlib script for heatmap visualization (requires -o)')
-    parser.add_argument('--labels', action='store_true',
-                        help='Include atom labels (element+ID) in output and plot (requires -o)')
+    parser.add_argument('--labels', type=str, nargs='?', const='both', default=None, 
+                        choices=['type', 'id', 'both'],
+                        help='Include atom labels in output and plot (requires -o). '
+                             'Options: "type" (atomic type only), "id" (atom ID only), '
+                             '"both" (atomic type + ID, default if flag is used without value)')
     parser.add_argument('--replicate', type=str, default='1,1',
                         help='Replicate the plot along e and f axes (format: "ne,nf", e.g., "2.5,3" for 2.5x3 replication)')
     parser.add_argument('--no-circles', action='store_true',
@@ -596,7 +611,7 @@ Examples:
         
         # Get atom labels if requested
         if args.labels:
-            labels = get_atom_labels(structure, atom_indices)
+            labels = get_atom_labels(structure, atom_indices, args.labels)
             # Create a combined array with projections and labels
             # Save with labels as 4th column
             with open(args.output, 'w') as f:
