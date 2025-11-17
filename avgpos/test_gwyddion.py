@@ -49,14 +49,17 @@ def read_ascii_matrix(filename):
 
 
 def test_gwyddion_basic():
-    """Test basic Gwyddion GSF file generation."""
+    """Test basic Gwyddion ASCII matrix file generation."""
     with tempfile.NamedTemporaryFile(mode='w', suffix='.dat', delete=False) as dat_f:
         dat_file = dat_f.name
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.gsf', delete=False) as gsf_f:
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as gsf_f:
         gsf_file = gsf_f.name
     
+    # Get plot script filename
+    plot_script = dat_file.replace('.dat', '_plot.py')
+    
     try:
-        # Run avgpos with --gwyddion option
+        # Run avgpos with --gwyddion and --plot options
         cmd = [
             sys.executable,
             'avgpos.py',
@@ -64,6 +67,7 @@ def test_gwyddion_basic():
             '-s', 'Se',
             '-d', 'z',
             '-o', dat_file,
+            '--plot',
             '--gwyddion', gsf_file
         ]
         
@@ -74,9 +78,26 @@ def test_gwyddion_basic():
             print(f"STDERR: {result.stderr}")
             return False
         
-        # Check that GSF file was created
+        # Verify message about ASCII matrix file
+        if 'ASCII matrix file will be written to' not in result.stdout:
+            print(f"FAILED: Expected message about ASCII matrix not found in output")
+            return False
+        
+        # Run the generated plot script to create the ASCII file
+        if not os.path.exists(plot_script):
+            print(f"FAILED: Plot script was not created: {plot_script}")
+            return False
+        
+        plot_result = subprocess.run([sys.executable, plot_script], capture_output=True, text=True)
+        
+        if plot_result.returncode != 0:
+            print(f"FAILED: Plot script failed with return code {plot_result.returncode}")
+            print(f"STDERR: {plot_result.stderr}")
+            return False
+        
+        # Check that ASCII file was created by the plot script
         if not os.path.exists(gsf_file):
-            print(f"FAILED: GSF file was not created: {gsf_file}")
+            print(f"FAILED: ASCII matrix file was not created: {gsf_file}")
             return False
         
         # Read and validate ASCII matrix file
@@ -107,11 +128,6 @@ def test_gwyddion_basic():
             print(f"FAILED: Data does not contain valid floats")
             return False
         
-        # Verify success message in output
-        if 'Gwyddion data matrix written to' not in result.stdout:
-            print(f"FAILED: Expected success message not found in output")
-            return False
-        
         print(f"PASSED: Basic Gwyddion ASCII matrix file generation")
         print(f"  XRes: {xres}, YRes: {yres}")
         print(f"  Data points: {len(data)}")
@@ -120,18 +136,22 @@ def test_gwyddion_basic():
     
     finally:
         # Clean up
-        for f in [dat_file, gsf_file]:
+        for f in [dat_file, gsf_file, plot_script]:
             if os.path.exists(f):
                 os.remove(f)
+        # Also clean up the PNG file
+        png_file = dat_file.replace('.dat', '_heatmap.png')
+        if os.path.exists(png_file):
+            os.remove(png_file)
 
 
 def test_gwyddion_without_output():
-    """Test that --gwyddion requires -o option."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.gsf', delete=False) as gsf_f:
+    """Test that --gwyddion requires both -o and --plot options."""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as gsf_f:
         gsf_file = gsf_f.name
     
     try:
-        # Run avgpos with --gwyddion but without -o
+        # Run avgpos with --gwyddion but without -o or --plot
         cmd = [
             sys.executable,
             'avgpos.py',
@@ -150,7 +170,7 @@ def test_gwyddion_without_output():
         
         # Check for warning message
         if 'Warning' not in result.stdout or 'gwyddion' not in result.stdout.lower():
-            print(f"FAILED: Expected warning about missing -o option")
+            print(f"FAILED: Expected warning about missing -o and --plot options")
             return False
         
         print(f"PASSED: Warning shown when -o is not specified")
@@ -163,14 +183,17 @@ def test_gwyddion_without_output():
 
 
 def test_gwyddion_with_labels():
-    """Test Gwyddion export with labels (labels should not affect GSF output)."""
+    """Test Gwyddion export with labels (labels should not affect ASCII matrix output)."""
     with tempfile.NamedTemporaryFile(mode='w', suffix='.dat', delete=False) as dat_f:
         dat_file = dat_f.name
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.gsf', delete=False) as gsf_f:
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as gsf_f:
         gsf_file = gsf_f.name
     
+    # Get plot script filename
+    plot_script = dat_file.replace('.dat', '_plot.py')
+    
     try:
-        # Run avgpos with --gwyddion and --labels
+        # Run avgpos with --gwyddion, --plot and --labels
         cmd = [
             sys.executable,
             'avgpos.py',
@@ -178,6 +201,7 @@ def test_gwyddion_with_labels():
             '-s', 'Se',
             '-d', 'z',
             '-o', dat_file,
+            '--plot',
             '--gwyddion', gsf_file,
             '--labels', 'both'
         ]
@@ -189,9 +213,21 @@ def test_gwyddion_with_labels():
             print(f"STDERR: {result.stderr}")
             return False
         
-        # Check that GSF file was created
+        # Run the generated plot script to create the ASCII file
+        if not os.path.exists(plot_script):
+            print(f"FAILED: Plot script was not created: {plot_script}")
+            return False
+        
+        plot_result = subprocess.run([sys.executable, plot_script], capture_output=True, text=True)
+        
+        if plot_result.returncode != 0:
+            print(f"FAILED: Plot script failed with return code {plot_result.returncode}")
+            print(f"STDERR: {plot_result.stderr}")
+            return False
+        
+        # Check that ASCII file was created by the plot script
         if not os.path.exists(gsf_file):
-            print(f"FAILED: GSF file was not created: {gsf_file}")
+            print(f"FAILED: ASCII matrix file was not created: {gsf_file}")
             return False
         
         # Read ASCII matrix file to ensure it's valid
@@ -209,9 +245,13 @@ def test_gwyddion_with_labels():
     
     finally:
         # Clean up
-        for f in [dat_file, gsf_file]:
+        for f in [dat_file, gsf_file, plot_script]:
             if os.path.exists(f):
                 os.remove(f)
+        # Also clean up the PNG file
+        png_file = dat_file.replace('.dat', '_heatmap.png')
+        if os.path.exists(png_file):
+            os.remove(png_file)
 
 
 def main():
