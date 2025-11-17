@@ -15,6 +15,7 @@ the Free Software Foundation, either version 3 of the License, or
 import sys
 import numpy as np
 import argparse
+import struct
 
 
 def read_poscar(filename):
@@ -239,7 +240,7 @@ def get_atom_labels(structure, atom_indices, label_format='both'):
     return labels
 
 
-def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False, lattice_shifts=None, label_no_box=False, vrange=None, label_at_projection=False):
+def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False, lattice_shifts=None, label_no_box=False, vrange=None, label_at_projection=False, gwyddion_file=None):
     """
     Generate a Python script using matplotlib to plot the plane projection data as a heatmap.
     
@@ -456,6 +457,38 @@ print(f"Plot saved to {output_image}")
 # plt.show()
 """
     
+    # Add code to write ASCII matrix if gwyddion_file is specified
+    if gwyddion_file:
+        script_content += f"""
+# Write ASCII matrix file for Gwyddion
+# This uses the same interpolated data (g_interp) that was used for the heatmap
+gwyddion_file = '{gwyddion_file}'
+print(f"Writing ASCII matrix to {{gwyddion_file}}...")
+
+# Get the grid dimensions
+yres, xres = g_interp.shape
+
+# Write ASCII data matrix file
+with open(gwyddion_file, 'w') as gwy_f:
+    # Write header with metadata
+    gwy_f.write(f"# Plane projection data from avgpos - ASCII matrix format\\n")
+    gwy_f.write(f"# Grid resolution: {{xres}} x {{yres}}\\n")
+    gwy_f.write(f"# X range (e): {{e_min:.10e}} to {{e_max:.10e}} (width: {{e_max - e_min:.10e}} Å)\\n")
+    gwy_f.write(f"# Y range (f): {{f_min:.10e}} to {{f_max:.10e}} (width: {{f_max - f_min:.10e}} Å)\\n")
+    gwy_f.write(f"# Z values (g): signed distance from plane (Å)\\n")
+    gwy_f.write(f"# Data format: {{yres}} rows x {{xres}} columns\\n")
+    gwy_f.write(f"# Interpolation: RBF (thin_plate, smooth=1e-10)\\n")
+    gwy_f.write(f"#\\n")
+    
+    # Write data matrix in row-major order
+    # Each row of the matrix is one line in the file
+    for i in range(yres):
+        row_values = [f"{{g_interp[i, j]:.10e}}" for j in range(xres)]
+        gwy_f.write(" ".join(row_values) + "\\n")
+
+print(f"ASCII matrix written to {{gwyddion_file}}")
+"""
+    
     with open(script_file, 'w') as f:
         f.write(script_content)
     
@@ -599,6 +632,12 @@ Examples:
                         help='Flip the sign of g values in the plane projection output. '
                              'By default, g = average_position - distance_along_direction. '
                              'With this flag, g = distance_along_direction - average_position.')
+    parser.add_argument('--gwyddion', type=str, default=None,
+                        help='Export data as ASCII matrix for Gwyddion. '
+                             'Specify the output filename. Requires both -o and --plot. '
+                             'The ASCII matrix will be written by the plot script and contains the same '
+                             'interpolated data as the PNG heatmap. Can be imported into Gwyddion software '
+                             '(https://gwyddion.net/) for visualization and analysis.')
     
     args = parser.parse_args()
     
@@ -766,7 +805,7 @@ Examples:
             lattice_shifts = (e_shift, f_shift)
             
             # Generate the plotting script
-            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box, vrange, args.label_at_projection)
+            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box, vrange, args.label_at_projection, args.gwyddion)
             
             print()
             print(f"Matplotlib plotting script generated: {script_file}")
@@ -784,7 +823,9 @@ Examples:
                 print(f"  (with {replicate[0]}x{replicate[1]} replication)")
             if args.no_circles and not args.labels:
                 print(f"  (without atom position circles)")
-    elif args.plot or args.labels or args.vrange or args.label_at_projection:
+            if args.gwyddion:
+                print(f"  (ASCII matrix file will be written to: {args.gwyddion})")
+    elif args.plot or args.labels or args.vrange or args.label_at_projection or args.gwyddion:
         print()
         if args.plot or args.labels:
             print("Warning: --plot and --labels flags require -o/--output to be specified. Ignoring.")
@@ -792,6 +833,8 @@ Examples:
             print("Warning: --vrange flag requires both -o/--output and --plot to be specified. Ignoring.")
         if args.label_at_projection:
             print("Warning: --label-at-projection flag requires -o/--output, --plot, and --labels to be specified. Ignoring.")
+        if args.gwyddion:
+            print("Warning: --gwyddion flag requires both -o/--output and --plot to be specified. Ignoring.")
     
     return 0
 
