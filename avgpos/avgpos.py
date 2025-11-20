@@ -240,7 +240,7 @@ def get_atom_labels(structure, atom_indices, label_format='both'):
     return labels
 
 
-def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False, lattice_shifts=None, label_no_box=False, vrange=None, label_at_projection=False, gwyddion_file=None):
+def generate_plot_script(data_file, script_file, output_image='heatmap.png', with_labels=False, replicate=(1, 1), no_circles=False, lattice_shifts=None, label_no_box=False, vrange=None, label_at_projection=False, gwyddion_file=None, erange=None):
     """
     Generate a Python script using matplotlib to plot the plane projection data as a heatmap.
     
@@ -268,6 +268,8 @@ def generate_plot_script(data_file, script_file, output_image='heatmap.png', wit
     label_at_projection : bool
         Whether to position labels at the exact projection coordinates (no offset) and hide circles.
         Only effective when with_labels is True.
+    erange : tuple or None
+        Tuple of (emin, emax, fmin, fmax) to specify the e,f plotting range. If None, uses data min/max (default).
     """
     script_content = f"""#!/usr/bin/env python3
 \"\"\"
@@ -339,9 +341,13 @@ if has_labels:
     labels = np.concatenate(labels_list)
 
 # Create a regular grid for interpolation
-# Determine the range of e and f
-e_min, e_max = e.min(), e.max()
-f_min, f_max = f.min(), f.max()
+# Determine the range of e and f from data or use custom range
+erange = {erange}
+if erange is not None:
+    e_min, e_max, f_min, f_max = erange[0], erange[1], erange[2], erange[3]
+else:
+    e_min, e_max = e.min(), e.max()
+    f_min, f_max = f.min(), f.max()
 
 e_grid = np.linspace(e_min, e_max, 200)
 f_grid = np.linspace(f_min, f_max, 200)
@@ -628,6 +634,10 @@ Examples:
                         help='Specify color map range as "vmin,vmax" (e.g., --vrange=-5,5 or --vrange=0,10). '
                              'If not specified, uses data min/max. Requires both -o and --plot. '
                              'Useful for comparing multiple plots with consistent color scales.')
+    parser.add_argument('--erange', type=str, default=None,
+                        help='Specify e,f range for plotting as "emin,emax,fmin,fmax" (e.g., --erange=0,10,0,10). '
+                             'If not specified, uses the full range of (replicated) data. Requires both -o and --plot. '
+                             'Useful for zooming into specific regions or ensuring consistent plot ranges.')
     parser.add_argument('--flip-g', action='store_true',
                         help='Flip the sign of g values in the plane projection output. '
                              'By default, g = average_position - distance_along_direction. '
@@ -781,6 +791,26 @@ Examples:
                     print(f"Warning: Invalid vrange format '{args.vrange}': {e}. Using data min/max")
                     vrange = None
             
+            # Parse erange argument
+            erange = None
+            if args.erange:
+                try:
+                    erange_parts = args.erange.split(',')
+                    if len(erange_parts) != 4:
+                        raise ValueError("erange must have exactly 4 values")
+                    emin = float(erange_parts[0])
+                    emax = float(erange_parts[1])
+                    fmin = float(erange_parts[2])
+                    fmax = float(erange_parts[3])
+                    if emin >= emax:
+                        raise ValueError("emin must be less than emax")
+                    if fmin >= fmax:
+                        raise ValueError("fmin must be less than fmax")
+                    erange = (emin, emax, fmin, fmax)
+                except (ValueError, IndexError) as e:
+                    print(f"Warning: Invalid erange format '{args.erange}': {e}. Using data min/max")
+                    erange = None
+            
             # Calculate lattice-based shift distances
             # Project each lattice vector onto the plane basis to find which provides the proper periodicity
             # For a general plane, we need to find the lattice vectors that give the minimal periodic shifts
@@ -805,7 +835,7 @@ Examples:
             lattice_shifts = (e_shift, f_shift)
             
             # Generate the plotting script
-            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box, vrange, args.label_at_projection, args.gwyddion)
+            generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box, vrange, args.label_at_projection, args.gwyddion, erange)
             
             print()
             print(f"Matplotlib plotting script generated: {script_file}")
@@ -813,6 +843,8 @@ Examples:
             print(f"Output image will be: {image_file}")
             if vrange:
                 print(f"  (with custom color range: {vrange[0]} to {vrange[1]})")
+            if erange:
+                print(f"  (with custom e,f range: e=[{erange[0]}, {erange[1]}], f=[{erange[2]}, {erange[3]}])")
             if args.labels:
                 if args.label_at_projection:
                     label_style = " at projection coordinates (no circles)" + (" without box" if args.label_no_box else "")
@@ -825,12 +857,14 @@ Examples:
                 print(f"  (without atom position circles)")
             if args.gwyddion:
                 print(f"  (ASCII matrix file will be written to: {args.gwyddion})")
-    elif args.plot or args.labels or args.vrange or args.label_at_projection or args.gwyddion:
+    elif args.plot or args.labels or args.vrange or args.label_at_projection or args.gwyddion or args.erange:
         print()
         if args.plot or args.labels:
             print("Warning: --plot and --labels flags require -o/--output to be specified. Ignoring.")
         if args.vrange:
             print("Warning: --vrange flag requires both -o/--output and --plot to be specified. Ignoring.")
+        if args.erange:
+            print("Warning: --erange flag requires both -o/--output and --plot to be specified. Ignoring.")
         if args.label_at_projection:
             print("Warning: --label-at-projection flag requires -o/--output, --plot, and --labels to be specified. Ignoring.")
         if args.gwyddion:
