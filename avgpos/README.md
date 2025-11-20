@@ -64,6 +64,7 @@ python3 avgpos.py
 - `--label-no-box`: Show labels without background box in the plot (only when `--labels` is used)
 - `--label-at-projection`: Position labels at the exact atom projection coordinates instead of offset from circles. When used, circles are hidden and labels are centered at the projection position. Only effective when `--labels` is used. Requires both `-o` and `--plot`.
 - `--vrange`: Specify color map range as "vmin,vmax" (e.g., `--vrange=-5,5` or `--vrange=0,10`). If not specified, uses data min/max. Requires both `-o` and `--plot`.
+- `--erange`: Specify e,f range for plotting as "emin,emax,fmin,fmax" (e.g., `--erange=0,10,0,10`). If not specified, uses the full range of (replicated) data. Requires both `-o` and `--plot`. Useful for zooming into specific regions or ensuring consistent plot ranges.
 - `--flip-g`: Flip the sign of g values in the plane projection output. By default, g = average_position - distance_along_direction. With this flag, g = distance_along_direction - average_position.
 - `--gwyddion <filename>`: Export data as ASCII matrix for Gwyddion. Requires both `-o` and `--plot` to be specified. The ASCII matrix is written by the plot script and contains the exact same interpolated data as the PNG heatmap. Can be imported into Gwyddion software (https://gwyddion.net/) for visualization and analysis.
 
@@ -161,6 +162,29 @@ Generate heatmap with positive color range:
 ./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --vrange=0,10
 # Then run: python3 projections_plot.py
 # Color map will range from 0 to 10
+```
+
+Generate heatmap with custom e,f plotting range:
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --erange=0,10,0,10
+# Then run: python3 projections_plot.py
+# Plot will use e range [0, 10] and f range [0, 10] instead of full data range
+# Useful for zooming into specific regions
+```
+
+Generate heatmap with asymmetric e,f range:
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --erange=-5,15,-10,10
+# Then run: python3 projections_plot.py
+# Plot will use e range [-5, 15] and f range [-10, 10]
+```
+
+Combine custom e,f range with custom color range:
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --erange=0,10,0,10 --vrange=-5,5
+# Then run: python3 projections_plot.py
+# Complete control: custom plotting range AND custom color scale
+# Ideal for comparing multiple plots with consistent ranges
 ```
 
 Calculate average position with flipped g values:
