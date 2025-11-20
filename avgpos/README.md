@@ -64,7 +64,7 @@ python3 avgpos.py
 - `--label-no-box`: Show labels without background box in the plot (only when `--labels` is used)
 - `--label-at-projection`: Position labels at the exact atom projection coordinates instead of offset from circles. When used, circles are hidden and labels are centered at the projection position. Only effective when `--labels` is used. Requires both `-o` and `--plot`.
 - `--vrange`: Specify color map range as "vmin,vmax" (e.g., `--vrange=-5,5` or `--vrange=0,10`). If not specified, uses data min/max. Requires both `-o` and `--plot`.
-- `--erange`: Specify e,f range for plotting as "emin,emax,fmin,fmax" (e.g., `--erange=0,10,0,10`). If not specified, uses the full range of (replicated) data. Requires both `-o` and `--plot`. Useful for zooming into specific regions or ensuring consistent plot ranges.
+- `--erange`: Specify e,f range for plotting as "emin,emax,fmin,fmax" (e.g., `--erange=0,10,0,10`). If not specified, uses the full range of (replicated) data. Requires both `-o` and `--plot`. Useful for zooming into specific regions or ensuring consistent plot ranges. **Note:** When using `--erange`, the axis labels are automatically shifted to start from 0. For example, `--erange=10,20,11,25` will display the data in the range e=[10,20], f=[11,25], but the axis labels will show e=[0,10] and f=[0,14].
 - `--flip-g`: Flip the sign of g values in the plane projection output. By default, g = average_position - distance_along_direction. With this flag, g = distance_along_direction - average_position.
 - `--gwyddion <filename>`: Export data as ASCII matrix for Gwyddion. Requires both `-o` and `--plot` to be specified. The ASCII matrix is written by the plot script and contains the exact same interpolated data as the PNG heatmap. Can be imported into Gwyddion software (https://gwyddion.net/) for visualization and analysis.
 
@@ -185,6 +185,15 @@ Combine custom e,f range with custom color range:
 # Then run: python3 projections_plot.py
 # Complete control: custom plotting range AND custom color scale
 # Ideal for comparing multiple plots with consistent ranges
+```
+
+Generate heatmap with erange label shifting (labels start from 0):
+```bash
+./avgpos.py POSCAR -s Se -d z -o projections.dat --plot --erange=10,20,11,25
+# Then run: python3 projections_plot.py
+# Data range: e=[10,20], f=[11,25]
+# Displayed axis labels: e=[0,10], f=[0,14] (shifted to start from 0)
+# This makes it easier to see the size of the displayed region
 ```
 
 Calculate average position with flipped g values:
