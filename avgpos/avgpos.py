@@ -884,6 +884,8 @@ Examples:
             generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box, vrange, args.label_at_projection, args.gwyddion, erange)
             
             # If erange is specified, write a separate data file with filtered data
+            erange_file = None
+            num_erange_points = 0
             if erange:
                 erange_file = f"{base_name}_erange.dat"
                 emin, emax, fmin, fmax = erange
@@ -893,6 +895,7 @@ Examples:
                 f_coords = projections[:, 1]
                 mask = (e_coords >= emin) & (e_coords <= emax) & (f_coords >= fmin) & (f_coords <= fmax)
                 filtered_projections = projections[mask]
+                num_erange_points = np.sum(mask)
                 
                 # Get filtered labels if they exist
                 if args.labels:
@@ -924,13 +927,7 @@ Examples:
                 print(f"  (with custom color range: {vrange[0]} to {vrange[1]})")
             if erange:
                 print(f"  (with custom e,f range: e=[{erange[0]}, {erange[1]}], f=[{erange[2]}, {erange[3]}])")
-                erange_file = f"{base_name}_erange.dat"
-                e_coords = projections[:, 0]
-                f_coords = projections[:, 1]
-                emin, emax, fmin, fmax = erange
-                mask = (e_coords >= emin) & (e_coords <= emax) & (f_coords >= fmin) & (f_coords <= fmax)
-                num_points = np.sum(mask)
-                print(f"  Filtered data file written to: {erange_file} ({num_points} points within erange)")
+                print(f"  Filtered data file written to: {erange_file} ({num_erange_points} points within erange)")
             if args.labels:
                 if args.label_at_projection:
                     label_style = " at projection coordinates (no circles)" + (" without box" if args.label_no_box else "")
