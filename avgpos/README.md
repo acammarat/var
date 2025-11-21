@@ -213,6 +213,20 @@ Export plane projection data to Gwyddion format (requires --plot):
 # The ASCII matrix can be imported into Gwyddion for advanced analysis
 ```
 
+Advanced example combining multiple features (labels, replication, erange, vrange, Gwyddion export):
+```bash
+./avgpos.py MPOSCAR_135m.vasp -i 5,29,1,21,17,41 -d b --plot --labels type --label-no-box --replicate 6,6 --vrange=-0.3,0.3 --label-at-projection -o mod135m_s1.dat --gwyddion mod135m_s1_matrix.dat --erange=10,30,5,10
+# Then run: python3 mod135m_s1_plot.py
+# This example demonstrates:
+#   - Select specific atoms by indices: 5,29,1,21,17,41
+#   - Project along b lattice vector direction
+#   - Show atom type labels without boxes at exact projection coordinates
+#   - Replicate the structure 6x6 times for better visualization
+#   - Use custom color range: -0.3 to 0.3 Å
+#   - Zoom to region e=[10,30], f=[5,10] with axis labels starting from 0
+#   - Export both PNG visualization and Gwyddion-compatible ASCII matrix
+```
+
 ## Output
 
 ### Standard Output
