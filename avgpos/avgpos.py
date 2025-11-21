@@ -928,7 +928,7 @@ Examples:
                 
                 # Get filtered labels if they exist
                 if args.labels:
-                    filtered_labels = [labels_replicated[i] for i in range(len(labels_replicated)) if mask[i]]
+                    filtered_labels = [label for label, m in zip(labels_replicated, mask) if m]
                     # Write with labels
                     with open(erange_file, 'w') as f:
                         f.write('# e f g label\n')
