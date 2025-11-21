@@ -890,30 +890,62 @@ Examples:
                 erange_file = f"{base_name}_erange.dat"
                 emin, emax, fmin, fmax = erange
                 
-                # Filter projections to only include points within the erange
-                e_coords = projections[:, 0]
-                f_coords = projections[:, 1]
-                mask = (e_coords >= emin) & (e_coords <= emax) & (f_coords >= fmin) & (f_coords <= fmax)
-                filtered_projections = projections[mask]
+                # Replicate data first (matching the plotting script behavior)
+                e_shift_unit = lattice_shifts[0]
+                f_shift_unit = lattice_shifts[1]
+                ne_full = int(np.ceil(replicate[0]))
+                nf_full = int(np.ceil(replicate[1]))
+                
+                e_list, f_list, g_list, labels_list = [], [], [], []
+                
+                for ie in range(ne_full):
+                    for jf in range(nf_full):
+                        e_factor = min(1.0, replicate[0] - ie) if ie < ne_full - 1 else (replicate[0] - ie)
+                        f_factor = min(1.0, replicate[1] - jf) if jf < nf_full - 1 else (replicate[1] - jf)
+                        
+                        if e_factor > 0 and f_factor > 0:
+                            e_shift = ie * e_shift_unit
+                            f_shift = jf * f_shift_unit
+                            e_list.append(projections[:, 0] + e_shift)
+                            f_list.append(projections[:, 1] + f_shift)
+                            g_list.append(projections[:, 2])
+                            if args.labels:
+                                labels_list.extend(labels)
+                
+                # Concatenate replicated data
+                e_replicated = np.concatenate(e_list)
+                f_replicated = np.concatenate(f_list)
+                g_replicated = np.concatenate(g_list)
+                if args.labels:
+                    labels_replicated = labels_list
+                
+                # Filter replicated data to only include points within the erange
+                mask = (e_replicated >= emin) & (e_replicated <= emax) & (f_replicated >= fmin) & (f_replicated <= fmax)
+                e_filtered = e_replicated[mask]
+                f_filtered = f_replicated[mask]
+                g_filtered = g_replicated[mask]
                 num_erange_points = np.sum(mask)
                 
                 # Get filtered labels if they exist
                 if args.labels:
-                    filtered_labels = [labels[i] for i in range(len(labels)) if mask[i]]
+                    filtered_labels = [labels_replicated[i] for i in range(len(labels_replicated)) if mask[i]]
                     # Write with labels
                     with open(erange_file, 'w') as f:
                         f.write('# e f g label\n')
                         f.write(f'# Data filtered for erange: e=[{emin}, {emax}], f=[{fmin}, {fmax}]\n')
+                        f.write(f'# Replicated {replicate[0]}x{replicate[1]} times before filtering\n')
                         f.write('# Projections onto plane perpendicular to direction vector\n')
                         f.write('# e, f: 2D coordinates on plane\n')
                         f.write(f'# g: {g_description}\n')
                         f.write('# label: atom type and ID (e.g., Ti1, O2)\n')
                         for i, label in enumerate(filtered_labels):
-                            f.write(f"{filtered_projections[i, 0]:.6f} {filtered_projections[i, 1]:.6f} {filtered_projections[i, 2]:.6f} {label}\n")
+                            f.write(f"{e_filtered[i]:.6f} {f_filtered[i]:.6f} {g_filtered[i]:.6f} {label}\n")
                 else:
                     # Write without labels
-                    np.savetxt(erange_file, filtered_projections, fmt='%.6f', 
+                    filtered_data = np.column_stack((e_filtered, f_filtered, g_filtered))
+                    np.savetxt(erange_file, filtered_data, fmt='%.6f', 
                                header=f'e f g\nData filtered for erange: e=[{emin}, {emax}], f=[{fmin}, {fmax}]\n'
+                                      f'Replicated {replicate[0]}x{replicate[1]} times before filtering\n'
                                       f'Projections onto plane perpendicular to direction vector\n'
                                       f'e, f: 2D coordinates on plane\n'
                                       f'g: {g_description}',

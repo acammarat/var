@@ -283,6 +283,80 @@ def test_erange_header():
                 os.remove(fname)
 
 
+def test_erange_with_replication():
+    """Test that erange filtering works with replicated data."""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.dat', delete=False) as f:
+        output_file = f.name
+    
+    plot_script = output_file.replace('.dat', '_plot.py')
+    erange_file = output_file.replace('.dat', '_erange.dat')
+    
+    try:
+        # Run command with replication and erange
+        # The original data has e,f coordinates roughly in [0, 1.7] x [0, 3.8]
+        # With 3x3 replication, it should extend to roughly [0, 5] x [0, 11.4]
+        # So erange=[3, 5, 0, 10] should capture some replicated points
+        cmd = [
+            sys.executable,
+            'avgpos.py',
+            'example/POSCAR',
+            '-s', 'Se',
+            '-d', 'z',
+            '-o', output_file,
+            '--plot',
+            '--replicate', '3,3',
+            '--erange=3,5,0,10'
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            print(f"FAILED: Command failed with return code {result.returncode}")
+            print(f"STDERR: {result.stderr}")
+            return False
+        
+        # Read the filtered data file
+        with open(erange_file, 'r') as f:
+            lines = f.readlines()
+        
+        # Check that the header mentions replication
+        header = ''.join(lines[:10])
+        if 'Replicated 3.0x3.0 times before filtering' not in header:
+            print(f"FAILED: Header does not mention replication")
+            print(f"Header: {header}")
+            return False
+        
+        # Read the data
+        data_lines = [l for l in lines if not l.startswith('#')]
+        if len(data_lines) == 0:
+            print(f"FAILED: No data points found (expected some replicated points)")
+            return False
+        
+        # Parse the data and verify all points are within erange
+        for line in data_lines:
+            parts = line.split()
+            e = float(parts[0])
+            f = float(parts[1])
+            if not (3.0 <= e <= 5.0 and 0.0 <= f <= 10.0):
+                print(f"FAILED: Point ({e}, {f}) is outside erange [3,5] x [0,10]")
+                return False
+        
+        # Check that output mentions points found
+        if 'points within erange)' in result.stdout and '(0 points within erange)' not in result.stdout:
+            print("PASSED: Erange filtering with replication works correctly")
+            return True
+        else:
+            print(f"FAILED: Expected some points with replication")
+            print(f"Output: {result.stdout[-500:]}")
+            return False
+    
+    finally:
+        # Clean up
+        for fname in [output_file, plot_script, erange_file]:
+            if os.path.exists(fname):
+                os.remove(fname)
+
+
 def main():
     """Run all tests."""
     print("Testing --erange data file output functionality")
@@ -295,7 +369,8 @@ def main():
         ("Erange data file filtering", test_erange_data_file_filtering),
         ("Erange data file with labels", test_erange_data_file_with_labels),
         ("No erange file without --erange", test_no_erange_no_file),
-        ("Erange data file header", test_erange_header)
+        ("Erange data file header", test_erange_header),
+        ("Erange with replication", test_erange_with_replication)
     ]
     
     passed = 0

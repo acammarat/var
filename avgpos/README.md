@@ -270,12 +270,13 @@ When the `--plot` flag is used along with `-o`, the tool generates a Python scri
 
 When the `--erange` option is used along with `-o` and `--plot`, the tool generates an additional filtered data file:
 - **File name**: Named as `<output_basename>_erange.dat`
-- **Content**: Contains only the data points (from the original plane projection data) that fall within the specified erange
+- **Content**: Contains only the data points (from the replicated plane projection data) that fall within the specified erange
+- **Replication**: When used with `--replicate`, the data is first replicated (just like in the plot), then filtered by erange
 - **Format**: Same format as the main projection data file (columns: e, f, g, and optionally label)
-- **Header**: Includes information about the erange filtering applied
+- **Header**: Includes information about the erange filtering and replication applied
 - **Use case**: Useful for further analysis or processing of just the data within the zoomed-in region
 
-For example, if you use `--erange=0,10,0,10`, the filtered file will contain only the data points where e is between 0 and 10 AND f is between 0 and 10.
+For example, if you use `--erange=10,30,5,10 --replicate=6,6`, the data is first replicated 6x6 times, then the filtered file will contain only those replicated data points where e is between 10 and 30 AND f is between 5 and 10. This matches exactly what is shown in the zoomed plot.
 
 ### Gwyddion ASCII Matrix Output File (optional)
 
