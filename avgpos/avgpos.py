@@ -681,7 +681,9 @@ Examples:
     parser.add_argument('--erange', type=str, default=None,
                         help='Specify e,f range for plotting as "emin,emax,fmin,fmax" (e.g., --erange=0,10,0,10). '
                              'If not specified, uses the full range of (replicated) data. Requires both -o and --plot. '
-                             'Useful for zooming into specific regions or ensuring consistent plot ranges.')
+                             'Useful for zooming into specific regions or ensuring consistent plot ranges. '
+                             'When specified, also writes a separate data file (<basename>_erange.dat) containing '
+                             'only the data points within the specified erange.')
     parser.add_argument('--flip-g', action='store_true',
                         help='Flip the sign of g values in the plane projection output. '
                              'By default, g = average_position - distance_along_direction. '
@@ -881,6 +883,39 @@ Examples:
             # Generate the plotting script
             generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box, vrange, args.label_at_projection, args.gwyddion, erange)
             
+            # If erange is specified, write a separate data file with filtered data
+            if erange:
+                erange_file = f"{base_name}_erange.dat"
+                emin, emax, fmin, fmax = erange
+                
+                # Filter projections to only include points within the erange
+                e_coords = projections[:, 0]
+                f_coords = projections[:, 1]
+                mask = (e_coords >= emin) & (e_coords <= emax) & (f_coords >= fmin) & (f_coords <= fmax)
+                filtered_projections = projections[mask]
+                
+                # Get filtered labels if they exist
+                if args.labels:
+                    filtered_labels = [labels[i] for i in range(len(labels)) if mask[i]]
+                    # Write with labels
+                    with open(erange_file, 'w') as f:
+                        f.write('# e f g label\n')
+                        f.write(f'# Data filtered for erange: e=[{emin}, {emax}], f=[{fmin}, {fmax}]\n')
+                        f.write('# Projections onto plane perpendicular to direction vector\n')
+                        f.write('# e, f: 2D coordinates on plane\n')
+                        f.write(f'# g: {g_description}\n')
+                        f.write('# label: atom type and ID (e.g., Ti1, O2)\n')
+                        for i, label in enumerate(filtered_labels):
+                            f.write(f"{filtered_projections[i, 0]:.6f} {filtered_projections[i, 1]:.6f} {filtered_projections[i, 2]:.6f} {label}\n")
+                else:
+                    # Write without labels
+                    np.savetxt(erange_file, filtered_projections, fmt='%.6f', 
+                               header=f'e f g\nData filtered for erange: e=[{emin}, {emax}], f=[{fmin}, {fmax}]\n'
+                                      f'Projections onto plane perpendicular to direction vector\n'
+                                      f'e, f: 2D coordinates on plane\n'
+                                      f'g: {g_description}',
+                               comments='# ')
+            
             print()
             print(f"Matplotlib plotting script generated: {script_file}")
             print(f"To create the heatmap, run: python3 {script_file}")
@@ -889,6 +924,13 @@ Examples:
                 print(f"  (with custom color range: {vrange[0]} to {vrange[1]})")
             if erange:
                 print(f"  (with custom e,f range: e=[{erange[0]}, {erange[1]}], f=[{erange[2]}, {erange[3]}])")
+                erange_file = f"{base_name}_erange.dat"
+                e_coords = projections[:, 0]
+                f_coords = projections[:, 1]
+                emin, emax, fmin, fmax = erange
+                mask = (e_coords >= emin) & (e_coords <= emax) & (f_coords >= fmin) & (f_coords <= fmax)
+                num_points = np.sum(mask)
+                print(f"  Filtered data file written to: {erange_file} ({num_points} points within erange)")
             if args.labels:
                 if args.label_at_projection:
                     label_style = " at projection coordinates (no circles)" + (" without box" if args.label_no_box else "")
