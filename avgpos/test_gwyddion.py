@@ -285,7 +285,6 @@ def test_gwyddion_not_affected_by_erange():
             print(f"FAILED: Full command failed")
             return False
         
-        plot_script_full = dat_file.replace('.dat', '_full_plot.py')
         if not os.path.exists(plot_script_full):
             print(f"FAILED: Full plot script not created")
             return False
