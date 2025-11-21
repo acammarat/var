@@ -415,6 +415,10 @@ cbar.set_label('Distance from plane (Å)', fontsize=12)
 # Set axis labels with units
 ax.set_xlabel('x (Å)', fontsize=12)
 ax.set_ylabel('y (Å)', fontsize=12)
+
+# Set axis limits to match the display range (shifted to start from 0 when erange is used)
+ax.set_xlim(e_min - e_display_shift, e_max - e_display_shift)
+ax.set_ylim(f_min - f_display_shift, f_max - f_display_shift)
 """
     
     if with_labels:
