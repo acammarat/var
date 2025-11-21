@@ -341,33 +341,71 @@ if has_labels:
     labels = np.concatenate(labels_list)
 
 # Create a regular grid for interpolation
-# Determine the range of e and f from data or use custom range
-erange = {erange}
-if erange is not None:
-    e_min, e_max, f_min, f_max = erange[0], erange[1], erange[2], erange[3]
-else:
-    e_min, e_max = e.min(), e.max()
-    f_min, f_max = f.min(), f.max()
+# Always interpolate on the full data range
+e_data_min, e_data_max = e.min(), e.max()
+f_data_min, f_data_max = f.min(), f.max()
 
-e_grid = np.linspace(e_min, e_max, 200)
-f_grid = np.linspace(f_min, f_max, 200)
-e_mesh, f_mesh = np.meshgrid(e_grid, f_grid)
+# Create grid for full data range
+e_grid_full = np.linspace(e_data_min, e_data_max, 200)
+f_grid_full = np.linspace(f_data_min, f_data_max, 200)
+e_mesh_full, f_mesh_full = np.meshgrid(e_grid_full, f_grid_full)
 
 # Use Radial Basis Function interpolation with very small smoothing
 # This ensures interpolation passes extremely close to data points while handling duplicates
 # smooth value is set to a tiny value to get nearly exact values at data points
 try:
     rbf = Rbf(e, f, g, function='thin_plate', smooth=1e-10)
-    g_interp = rbf(e_mesh, f_mesh)
+    g_interp_full = rbf(e_mesh_full, f_mesh_full)
 except:
     # Fall back to multiquadric if thin_plate fails
     try:
         rbf = Rbf(e, f, g, function='multiquadric', smooth=1e-10)
-        g_interp = rbf(e_mesh, f_mesh)
+        g_interp_full = rbf(e_mesh_full, f_mesh_full)
     except:
         # Last resort: use linear with small smoothing
         rbf = Rbf(e, f, g, function='linear', smooth=1e-8)
-        g_interp = rbf(e_mesh, f_mesh)
+        g_interp_full = rbf(e_mesh_full, f_mesh_full)
+
+# Determine the range to display (either erange or full data range)
+erange = {erange}
+if erange is not None:
+    e_min, e_max, f_min, f_max = erange[0], erange[1], erange[2], erange[3]
+    # Calculate shift amounts to make labels start from 0
+    e_display_shift = e_min
+    f_display_shift = f_min
+    
+    # Extract the portion of the interpolated data within erange
+    # Find indices that fall within the erange window
+    e_mask = (e_grid_full >= e_min) & (e_grid_full <= e_max)
+    f_mask = (f_grid_full >= f_min) & (f_grid_full <= f_max)
+    
+    # Extract the sub-grid
+    e_grid = e_grid_full[e_mask]
+    f_grid = f_grid_full[f_mask]
+    
+    # Create meshgrid for the extracted region
+    e_mesh, f_mesh = np.meshgrid(e_grid, f_grid)
+    
+    # Extract the corresponding portion of g_interp
+    # We need to slice the 2D array using the masks
+    g_interp = g_interp_full[np.ix_(f_mask, e_mask)]
+else:
+    e_min, e_max = e_data_min, e_data_max
+    f_min, f_max = f_data_min, f_data_max
+    # No shift when erange is not specified
+    e_display_shift = 0
+    f_display_shift = 0
+    
+    # Use the full interpolation
+    e_mesh = e_mesh_full
+    f_mesh = f_mesh_full
+    g_interp = g_interp_full
+
+# Apply coordinate shift for display (labels start from 0 when erange is used)
+e_mesh_display = e_mesh - e_display_shift
+f_mesh_display = f_mesh - f_display_shift
+e_display = e - e_display_shift
+f_display = f - f_display_shift
 
 # Determine color range from actual data values (not interpolated) or use custom range
 vrange = {vrange}
@@ -381,7 +419,7 @@ fig, ax = plt.subplots(figsize=(10, 8))
 
 # Create smooth heatmap using pcolormesh with RGB gradient (jet colormap)
 # Use the same vmin/vmax as the scatter plot for consistent colors
-heatmap = ax.pcolormesh(e_mesh, f_mesh, g_interp, cmap='jet', shading='auto', vmin=vmin, vmax=vmax)
+heatmap = ax.pcolormesh(e_mesh_display, f_mesh_display, g_interp, cmap='jet', shading='auto', vmin=vmin, vmax=vmax)
 """
     
     # Add scatter points conditionally
@@ -390,7 +428,7 @@ heatmap = ax.pcolormesh(e_mesh, f_mesh, g_interp, cmap='jet', shading='auto', vm
         script_content += f"""
 # Overlay the original data points with their EXACT g values colored
 # This ensures atomic positions correspond to the real g value from the data file
-scatter = ax.scatter(e, f, c=g, cmap='jet', s=150, edgecolors='black', linewidths=2, zorder=10, vmin=vmin, vmax=vmax)
+scatter = ax.scatter(e_display, f_display, c=g, cmap='jet', s=150, edgecolors='black', linewidths=2, zorder=10, vmin=vmin, vmax=vmax)
 """
     
     script_content += f"""
@@ -403,6 +441,10 @@ cbar.set_label('Distance from plane (Å)', fontsize=12)
 # Set axis labels with units
 ax.set_xlabel('x (Å)', fontsize=12)
 ax.set_ylabel('y (Å)', fontsize=12)
+
+# Set axis limits to match the display range (shifted to start from 0 when erange is used)
+ax.set_xlim(e_min - e_display_shift, e_max - e_display_shift)
+ax.set_ylim(f_min - f_display_shift, f_max - f_display_shift)
 """
     
     if with_labels:
@@ -413,7 +455,7 @@ ax.set_ylabel('y (Å)', fontsize=12)
 # Add atom labels at exact projection coordinates without background box
 if has_labels:
     for i in range(len(e)):
-        ax.annotate(labels[i], (e[i], f[i]), 
+        ax.annotate(labels[i], (e_display[i], f_display[i]), 
                     ha='center', va='center',
                     fontsize=10, fontweight='bold', color='black')
 """
@@ -422,7 +464,7 @@ if has_labels:
 # Add atom labels at exact projection coordinates
 if has_labels:
     for i in range(len(e)):
-        ax.annotate(labels[i], (e[i], f[i]), 
+        ax.annotate(labels[i], (e_display[i], f_display[i]), 
                     ha='center', va='center',
                     fontsize=10, fontweight='bold', color='black',
                     bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='black', alpha=0.7))
@@ -432,7 +474,7 @@ if has_labels:
 # Add atom labels without background box (already replicated above if needed)
 if has_labels:
     for i in range(len(e)):
-        ax.annotate(labels[i], (e[i], f[i]), 
+        ax.annotate(labels[i], (e_display[i], f_display[i]), 
                     xytext=(5, 5), textcoords='offset points',
                     fontsize=10, fontweight='bold', color='black')
 """
@@ -441,7 +483,7 @@ if has_labels:
 # Add atom labels (already replicated above if needed)
 if has_labels:
     for i in range(len(e)):
-        ax.annotate(labels[i], (e[i], f[i]), 
+        ax.annotate(labels[i], (e_display[i], f_display[i]), 
                     xytext=(5, 5), textcoords='offset points',
                     fontsize=10, fontweight='bold', color='black',
                     bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='black', alpha=0.7))
@@ -479,8 +521,10 @@ with open(gwyddion_file, 'w') as gwy_f:
     # Write header with metadata
     gwy_f.write(f"# Plane projection data from avgpos - ASCII matrix format\\n")
     gwy_f.write(f"# Grid resolution: {{xres}} x {{yres}}\\n")
-    gwy_f.write(f"# X range (e): {{e_min:.10e}} to {{e_max:.10e}} (width: {{e_max - e_min:.10e}} Å)\\n")
-    gwy_f.write(f"# Y range (f): {{f_min:.10e}} to {{f_max:.10e}} (width: {{f_max - f_min:.10e}} Å)\\n")
+    gwy_f.write(f"# Original data X range (e): {{e_min:.10e}} to {{e_max:.10e}} (width: {{e_max - e_min:.10e}} Å)\\n")
+    gwy_f.write(f"# Original data Y range (f): {{f_min:.10e}} to {{f_max:.10e}} (width: {{f_max - f_min:.10e}} Å)\\n")
+    gwy_f.write(f"# Display X range (e): {{e_min - e_display_shift:.10e}} to {{e_max - e_display_shift:.10e}} (shifted by {{e_display_shift:.10e}} Å)\\n")
+    gwy_f.write(f"# Display Y range (f): {{f_min - f_display_shift:.10e}} to {{f_max - f_display_shift:.10e}} (shifted by {{f_display_shift:.10e}} Å)\\n")
     gwy_f.write(f"# Z values (g): signed distance from plane (Å)\\n")
     gwy_f.write(f"# Data format: {{yres}} rows x {{xres}} columns\\n")
     gwy_f.write(f"# Interpolation: RBF (thin_plate, smooth=1e-10)\\n")

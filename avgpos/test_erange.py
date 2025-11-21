@@ -48,12 +48,12 @@ def test_default_erange():
         
         # Check for erange = None in the script
         if 'erange = None' in script_content:
-            # Also verify the fallback logic
-            if 'e_min, e_max = e.min(), e.max()' in script_content and 'f_min, f_max = f.min(), f.max()' in script_content:
+            # Verify that full data range is always computed
+            if 'e_data_min, e_data_max = e.min(), e.max()' in script_content and 'f_data_min, f_data_max = f.min(), f.max()' in script_content:
                 print("PASSED: Default behavior (uses data min/max)")
                 return True
             else:
-                print("FAILED: Fallback logic not found")
+                print("FAILED: Full data range computation not found")
                 return False
         else:
             print("FAILED: erange = None not found in generated script")
