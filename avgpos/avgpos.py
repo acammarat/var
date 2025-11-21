@@ -509,22 +509,20 @@ print(f"Plot saved to {output_image}")
     if gwyddion_file:
         script_content += f"""
 # Write ASCII matrix file for Gwyddion
-# This uses the same interpolated data (g_interp) that was used for the heatmap
+# Always uses the full interpolated data (g_interp_full), not affected by erange
 gwyddion_file = '{gwyddion_file}'
 print(f"Writing ASCII matrix to {{gwyddion_file}}...")
 
-# Get the grid dimensions
-yres, xres = g_interp.shape
+# Get the grid dimensions from the full interpolation
+yres, xres = g_interp_full.shape
 
 # Write ASCII data matrix file
 with open(gwyddion_file, 'w') as gwy_f:
     # Write header with metadata
     gwy_f.write(f"# Plane projection data from avgpos - ASCII matrix format\\n")
     gwy_f.write(f"# Grid resolution: {{xres}} x {{yres}}\\n")
-    gwy_f.write(f"# Original data X range (e): {{e_min:.10e}} to {{e_max:.10e}} (width: {{e_max - e_min:.10e}} Å)\\n")
-    gwy_f.write(f"# Original data Y range (f): {{f_min:.10e}} to {{f_max:.10e}} (width: {{f_max - f_min:.10e}} Å)\\n")
-    gwy_f.write(f"# Display X range (e): {{e_min - e_display_shift:.10e}} to {{e_max - e_display_shift:.10e}} (shifted by {{e_display_shift:.10e}} Å)\\n")
-    gwy_f.write(f"# Display Y range (f): {{f_min - f_display_shift:.10e}} to {{f_max - f_display_shift:.10e}} (shifted by {{f_display_shift:.10e}} Å)\\n")
+    gwy_f.write(f"# Data X range (e): {{e_data_min:.10e}} to {{e_data_max:.10e}} (width: {{e_data_max - e_data_min:.10e}} Å)\\n")
+    gwy_f.write(f"# Data Y range (f): {{f_data_min:.10e}} to {{f_data_max:.10e}} (width: {{f_data_max - f_data_min:.10e}} Å)\\n")
     gwy_f.write(f"# Z values (g): signed distance from plane (Å)\\n")
     gwy_f.write(f"# Data format: {{yres}} rows x {{xres}} columns\\n")
     gwy_f.write(f"# Interpolation: RBF (thin_plate, smooth=1e-10)\\n")
@@ -533,7 +531,7 @@ with open(gwyddion_file, 'w') as gwy_f:
     # Write data matrix in row-major order
     # Each row of the matrix is one line in the file
     for i in range(yres):
-        row_values = [f"{{g_interp[i, j]:.10e}}" for j in range(xres)]
+        row_values = [f"{{g_interp_full[i, j]:.10e}}" for j in range(xres)]
         gwy_f.write(" ".join(row_values) + "\\n")
 
 print(f"ASCII matrix written to {{gwyddion_file}}")
@@ -681,9 +679,7 @@ Examples:
     parser.add_argument('--erange', type=str, default=None,
                         help='Specify e,f range for plotting as "emin,emax,fmin,fmax" (e.g., --erange=0,10,0,10). '
                              'If not specified, uses the full range of (replicated) data. Requires both -o and --plot. '
-                             'Useful for zooming into specific regions or ensuring consistent plot ranges. '
-                             'When specified, also writes a separate data file (<basename>_erange.dat) containing '
-                             'only the data points within the specified erange.')
+                             'Useful for zooming into specific regions or ensuring consistent plot ranges.')
     parser.add_argument('--flip-g', action='store_true',
                         help='Flip the sign of g values in the plane projection output. '
                              'By default, g = average_position - distance_along_direction. '
@@ -883,74 +879,6 @@ Examples:
             # Generate the plotting script
             generate_plot_script(args.output, script_file, image_file, args.labels, replicate, args.no_circles, lattice_shifts, args.label_no_box, vrange, args.label_at_projection, args.gwyddion, erange)
             
-            # If erange is specified, write a separate data file with filtered data
-            erange_file = None
-            num_erange_points = 0
-            if erange:
-                erange_file = f"{base_name}_erange.dat"
-                emin, emax, fmin, fmax = erange
-                
-                # Replicate data first (matching the plotting script behavior)
-                e_shift_unit = lattice_shifts[0]
-                f_shift_unit = lattice_shifts[1]
-                ne_full = int(np.ceil(replicate[0]))
-                nf_full = int(np.ceil(replicate[1]))
-                
-                e_list, f_list, g_list, labels_list = [], [], [], []
-                
-                for ie in range(ne_full):
-                    for jf in range(nf_full):
-                        e_factor = min(1.0, replicate[0] - ie) if ie < ne_full - 1 else (replicate[0] - ie)
-                        f_factor = min(1.0, replicate[1] - jf) if jf < nf_full - 1 else (replicate[1] - jf)
-                        
-                        if e_factor > 0 and f_factor > 0:
-                            e_shift = ie * e_shift_unit
-                            f_shift = jf * f_shift_unit
-                            e_list.append(projections[:, 0] + e_shift)
-                            f_list.append(projections[:, 1] + f_shift)
-                            g_list.append(projections[:, 2])
-                            if args.labels:
-                                labels_list.extend(labels)
-                
-                # Concatenate replicated data
-                e_replicated = np.concatenate(e_list)
-                f_replicated = np.concatenate(f_list)
-                g_replicated = np.concatenate(g_list)
-                if args.labels:
-                    labels_replicated = labels_list
-                
-                # Filter replicated data to only include points within the erange
-                mask = (e_replicated >= emin) & (e_replicated <= emax) & (f_replicated >= fmin) & (f_replicated <= fmax)
-                e_filtered = e_replicated[mask]
-                f_filtered = f_replicated[mask]
-                g_filtered = g_replicated[mask]
-                num_erange_points = np.sum(mask)
-                
-                # Get filtered labels if they exist
-                if args.labels:
-                    filtered_labels = [label for label, m in zip(labels_replicated, mask) if m]
-                    # Write with labels
-                    with open(erange_file, 'w') as f:
-                        f.write('# e f g label\n')
-                        f.write(f'# Data filtered for erange: e=[{emin}, {emax}], f=[{fmin}, {fmax}]\n')
-                        f.write(f'# Replicated {replicate[0]}x{replicate[1]} times before filtering\n')
-                        f.write('# Projections onto plane perpendicular to direction vector\n')
-                        f.write('# e, f: 2D coordinates on plane\n')
-                        f.write(f'# g: {g_description}\n')
-                        f.write('# label: atom type and ID (e.g., Ti1, O2)\n')
-                        for i, label in enumerate(filtered_labels):
-                            f.write(f"{e_filtered[i]:.6f} {f_filtered[i]:.6f} {g_filtered[i]:.6f} {label}\n")
-                else:
-                    # Write without labels
-                    filtered_data = np.column_stack((e_filtered, f_filtered, g_filtered))
-                    np.savetxt(erange_file, filtered_data, fmt='%.6f', 
-                               header=f'e f g\nData filtered for erange: e=[{emin}, {emax}], f=[{fmin}, {fmax}]\n'
-                                      f'Replicated {replicate[0]}x{replicate[1]} times before filtering\n'
-                                      f'Projections onto plane perpendicular to direction vector\n'
-                                      f'e, f: 2D coordinates on plane\n'
-                                      f'g: {g_description}',
-                               comments='# ')
-            
             print()
             print(f"Matplotlib plotting script generated: {script_file}")
             print(f"To create the heatmap, run: python3 {script_file}")
@@ -959,7 +887,6 @@ Examples:
                 print(f"  (with custom color range: {vrange[0]} to {vrange[1]})")
             if erange:
                 print(f"  (with custom e,f range: e=[{erange[0]}, {erange[1]}], f=[{erange[2]}, {erange[3]}])")
-                print(f"  Filtered data file written to: {erange_file} ({num_erange_points} points within erange)")
             if args.labels:
                 if args.label_at_projection:
                     label_style = " at projection coordinates (no circles)" + (" without box" if args.label_no_box else "")

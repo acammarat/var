@@ -64,7 +64,7 @@ python3 avgpos.py
 - `--label-no-box`: Show labels without background box in the plot (only when `--labels` is used)
 - `--label-at-projection`: Position labels at the exact atom projection coordinates instead of offset from circles. When used, circles are hidden and labels are centered at the projection position. Only effective when `--labels` is used. Requires both `-o` and `--plot`.
 - `--vrange`: Specify color map range as "vmin,vmax" (e.g., `--vrange=-5,5` or `--vrange=0,10`). If not specified, uses data min/max. Requires both `-o` and `--plot`.
-- `--erange`: Specify e,f range for plotting as "emin,emax,fmin,fmax" (e.g., `--erange=0,10,0,10`). If not specified, uses the full range of (replicated) data. Requires both `-o` and `--plot`. Useful for zooming into specific regions or ensuring consistent plot ranges. **Note:** When using `--erange`, the axis labels are automatically shifted to start from 0. For example, `--erange=10,20,11,25` will display the data in the range e=[10,20], f=[11,25], but the axis labels will show e=[0,10] and f=[0,14]. **Additionally, when `--erange` is specified, a separate data file `<basename>_erange.dat` is written containing only the data points that fall within the specified erange.**
+- `--erange`: Specify e,f range for plotting as "emin,emax,fmin,fmax" (e.g., `--erange=0,10,0,10`). If not specified, uses the full range of (replicated) data. Requires both `-o` and `--plot`. Useful for zooming into specific regions or ensuring consistent plot ranges. **Note:** When using `--erange`, the axis labels are automatically shifted to start from 0. For example, `--erange=10,20,11,25` will display the data in the range e=[10,20], f=[11,25], but the axis labels will show e=[0,10] and f=[0,14].
 - `--flip-g`: Flip the sign of g values in the plane projection output. By default, g = average_position - distance_along_direction. With this flag, g = distance_along_direction - average_position.
 - `--gwyddion <filename>`: Export data as ASCII matrix for Gwyddion. Requires both `-o` and `--plot` to be specified. The ASCII matrix is written by the plot script and contains the exact same interpolated data as the PNG heatmap. Can be imported into Gwyddion software (https://gwyddion.net/) for visualization and analysis.
 
@@ -170,7 +170,6 @@ Generate heatmap with custom e,f plotting range:
 # Then run: python3 projections_plot.py
 # Plot will use e range [0, 10] and f range [0, 10] instead of full data range
 # Useful for zooming into specific regions
-# Also creates projections_erange.dat with only the data points within this range
 ```
 
 Generate heatmap with asymmetric e,f range:
@@ -265,18 +264,6 @@ When the `--plot` flag is used along with `-o`, the tool generates a Python scri
 - To generate the plot, run: `python3 <script_file>`
 
 **Requirements**: Matplotlib and SciPy must be installed on your system to generate the visualization.
-
-### Filtered Plane Projection Output File (optional)
-
-When the `--erange` option is used along with `-o` and `--plot`, the tool generates an additional filtered data file:
-- **File name**: Named as `<output_basename>_erange.dat`
-- **Content**: Contains only the data points (from the replicated plane projection data) that fall within the specified erange
-- **Replication**: When used with `--replicate`, the data is first replicated (just like in the plot), then filtered by erange
-- **Format**: Same format as the main projection data file (columns: e, f, g, and optionally label)
-- **Header**: Includes information about the erange filtering and replication applied
-- **Use case**: Useful for further analysis or processing of just the data within the zoomed-in region
-
-For example, if you use `--erange=10,30,5,10 --replicate=6,6`, the data is first replicated 6x6 times, then the filtered file will contain only those replicated data points where e is between 10 and 30 AND f is between 5 and 10. This matches exactly what is shown in the zoomed plot.
 
 ### Gwyddion ASCII Matrix Output File (optional)
 
