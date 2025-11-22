@@ -254,6 +254,126 @@ def test_gwyddion_with_labels():
             os.remove(png_file)
 
 
+def test_gwyddion_not_affected_by_erange():
+    """Test that Gwyddion export always uses full data range, not affected by --erange."""
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.dat', delete=False) as dat_f:
+        dat_file = dat_f.name
+    with tempfile.NamedTemporaryFile(mode='w', suffix='_full.txt', delete=False) as gsf_full_f:
+        gsf_full_file = gsf_full_f.name
+    with tempfile.NamedTemporaryFile(mode='w', suffix='_erange.txt', delete=False) as gsf_erange_f:
+        gsf_erange_file = gsf_erange_f.name
+    
+    # Get plot script filenames
+    plot_script_full = dat_file.replace('.dat', '_full_plot.py')
+    plot_script_erange = dat_file.replace('.dat', '_erange_plot.py')
+    
+    try:
+        # First, generate Gwyddion file WITHOUT erange
+        cmd_full = [
+            sys.executable,
+            'avgpos.py',
+            'example/POSCAR',
+            '-s', 'Se',
+            '-d', 'z',
+            '-o', dat_file.replace('.dat', '_full.dat'),
+            '--plot',
+            '--gwyddion', gsf_full_file
+        ]
+        
+        result_full = subprocess.run(cmd_full, capture_output=True, text=True)
+        if result_full.returncode != 0:
+            print(f"FAILED: Full command failed")
+            return False
+        
+        if not os.path.exists(plot_script_full):
+            print(f"FAILED: Full plot script not created")
+            return False
+        
+        plot_result_full = subprocess.run([sys.executable, plot_script_full], capture_output=True, text=True)
+        if plot_result_full.returncode != 0:
+            print(f"FAILED: Full plot script failed")
+            return False
+        
+        # Now generate Gwyddion file WITH erange (should be the same)
+        cmd_erange = [
+            sys.executable,
+            'avgpos.py',
+            'example/POSCAR',
+            '-s', 'Se',
+            '-d', 'z',
+            '-o', dat_file.replace('.dat', '_erange.dat'),
+            '--plot',
+            '--gwyddion', gsf_erange_file,
+            '--erange=0,1,0,1'  # Restrictive erange
+        ]
+        
+        result_erange = subprocess.run(cmd_erange, capture_output=True, text=True)
+        if result_erange.returncode != 0:
+            print(f"FAILED: Erange command failed")
+            return False
+        
+        plot_script_erange = dat_file.replace('.dat', '_erange_plot.py')
+        if not os.path.exists(plot_script_erange):
+            print(f"FAILED: Erange plot script not created")
+            return False
+        
+        plot_result_erange = subprocess.run([sys.executable, plot_script_erange], capture_output=True, text=True)
+        if plot_result_erange.returncode != 0:
+            print(f"FAILED: Erange plot script failed")
+            return False
+        
+        # Read both ASCII files
+        try:
+            header_full, data_full = read_ascii_matrix(gsf_full_file)
+            header_erange, data_erange = read_ascii_matrix(gsf_erange_file)
+        except Exception as e:
+            print(f"FAILED: Error reading ASCII matrix files: {e}")
+            return False
+        
+        # Verify both have the same dimensions (full data)
+        if header_full['XRes'] != header_erange['XRes'] or header_full['YRes'] != header_erange['YRes']:
+            print(f"FAILED: Grid dimensions differ")
+            print(f"  Full: {header_full['XRes']}x{header_full['YRes']}")
+            print(f"  Erange: {header_erange['XRes']}x{header_erange['YRes']}")
+            return False
+        
+        # Verify both have the same data range (full data)
+        if header_full['XReal'] != header_erange['XReal'] or header_full['YReal'] != header_erange['YReal']:
+            print(f"FAILED: Data ranges differ")
+            print(f"  Full: X={header_full['XReal']}, Y={header_full['YReal']}")
+            print(f"  Erange: X={header_erange['XReal']}, Y={header_erange['YReal']}")
+            return False
+        
+        # Verify data is identical
+        if len(data_full) != len(data_erange):
+            print(f"FAILED: Data size differs")
+            return False
+        
+        # Check that data values are the same (within floating point tolerance)
+        import numpy as np
+        if not np.allclose(data_full, data_erange, rtol=1e-9):
+            print(f"FAILED: Data values differ")
+            return False
+        
+        print(f"PASSED: Gwyddion export not affected by --erange")
+        print(f"  Both files have identical: {header_full['XRes']}x{header_full['YRes']} grid, {len(data_full)} points")
+        return True
+    
+    finally:
+        # Clean up
+        cleanup_files = [
+            dat_file, gsf_full_file, gsf_erange_file, 
+            plot_script_full, plot_script_erange,
+            dat_file.replace('.dat', '_full.dat'),
+            dat_file.replace('.dat', '_erange.dat'),
+            dat_file.replace('.dat', '_full_heatmap.png'),
+            dat_file.replace('.dat', '_erange_heatmap.png'),
+        ]
+        for f in cleanup_files:
+            if os.path.exists(f):
+                os.remove(f)
+
+
 def main():
     """Run all tests."""
     print("Testing --gwyddion option functionality")
@@ -265,6 +385,7 @@ def main():
         ('Basic GSF generation', test_gwyddion_basic),
         ('Warning without -o', test_gwyddion_without_output),
         ('GSF with labels', test_gwyddion_with_labels),
+        ('GSF not affected by erange', test_gwyddion_not_affected_by_erange),
     ]
     
     passed = 0

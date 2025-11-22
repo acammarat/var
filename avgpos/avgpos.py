@@ -509,22 +509,20 @@ print(f"Plot saved to {output_image}")
     if gwyddion_file:
         script_content += f"""
 # Write ASCII matrix file for Gwyddion
-# This uses the same interpolated data (g_interp) that was used for the heatmap
+# Always uses the full interpolated data (g_interp_full), not affected by erange
 gwyddion_file = '{gwyddion_file}'
 print(f"Writing ASCII matrix to {{gwyddion_file}}...")
 
-# Get the grid dimensions
-yres, xres = g_interp.shape
+# Get the grid dimensions from the full interpolation
+yres, xres = g_interp_full.shape
 
 # Write ASCII data matrix file
 with open(gwyddion_file, 'w') as gwy_f:
     # Write header with metadata
     gwy_f.write(f"# Plane projection data from avgpos - ASCII matrix format\\n")
     gwy_f.write(f"# Grid resolution: {{xres}} x {{yres}}\\n")
-    gwy_f.write(f"# Original data X range (e): {{e_min:.10e}} to {{e_max:.10e}} (width: {{e_max - e_min:.10e}} Å)\\n")
-    gwy_f.write(f"# Original data Y range (f): {{f_min:.10e}} to {{f_max:.10e}} (width: {{f_max - f_min:.10e}} Å)\\n")
-    gwy_f.write(f"# Display X range (e): {{e_min - e_display_shift:.10e}} to {{e_max - e_display_shift:.10e}} (shifted by {{e_display_shift:.10e}} Å)\\n")
-    gwy_f.write(f"# Display Y range (f): {{f_min - f_display_shift:.10e}} to {{f_max - f_display_shift:.10e}} (shifted by {{f_display_shift:.10e}} Å)\\n")
+    gwy_f.write(f"# Data X range (e): {{e_data_min:.10e}} to {{e_data_max:.10e}} (width: {{e_data_max - e_data_min:.10e}} Å)\\n")
+    gwy_f.write(f"# Data Y range (f): {{f_data_min:.10e}} to {{f_data_max:.10e}} (width: {{f_data_max - f_data_min:.10e}} Å)\\n")
     gwy_f.write(f"# Z values (g): signed distance from plane (Å)\\n")
     gwy_f.write(f"# Data format: {{yres}} rows x {{xres}} columns\\n")
     gwy_f.write(f"# Interpolation: RBF (thin_plate, smooth=1e-10)\\n")
@@ -533,7 +531,7 @@ with open(gwyddion_file, 'w') as gwy_f:
     # Write data matrix in row-major order
     # Each row of the matrix is one line in the file
     for i in range(yres):
-        row_values = [f"{{g_interp[i, j]:.10e}}" for j in range(xres)]
+        row_values = [f"{{g_interp_full[i, j]:.10e}}" for j in range(xres)]
         gwy_f.write(" ".join(row_values) + "\\n")
 
 print(f"ASCII matrix written to {{gwyddion_file}}")
