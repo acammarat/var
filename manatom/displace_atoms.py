@@ -35,6 +35,11 @@ import sys
 from scipy.optimize import minimize
 
 
+# Constants for surface distance calculation
+MIN_NEIGHBOR_DISTANCE = 0.01  # Minimum distance to exclude self-distances (Angstrom)
+LARGE_PENALTY = 1e10  # Penalty value for invalid optimization parameters
+
+
 class POSCAR:
     def __init__(self, filename):
         """Read and parse a POSCAR file."""
@@ -309,7 +314,7 @@ class POSCAR:
         neighbors = set()
         for ref_pos in reference_positions:
             distances = np.linalg.norm(cart_positions - ref_pos, axis=1)
-            neighbor_mask = (distances < distance_threshold) & (distances > 0.01)
+            neighbor_mask = (distances < distance_threshold) & (distances > MIN_NEIGHBOR_DISTANCE)
             neighbor_indices = np.where(neighbor_mask)[0]
             neighbors.update(neighbor_indices.tolist())
         
@@ -345,7 +350,7 @@ class POSCAR:
             # Normalize the normal vector
             normal_norm = np.linalg.norm(normal)
             if normal_norm < 1e-10:
-                return 1e10
+                return LARGE_PENALTY
             normal = normal / normal_norm
             
             # Calculate distances from each neighbor to the plane
@@ -552,8 +557,6 @@ Examples:
         
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
         sys.exit(1)
 
 
