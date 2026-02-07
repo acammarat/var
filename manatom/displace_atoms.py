@@ -402,9 +402,6 @@ class POSCAR:
         if not indices:
             raise ValueError(f"No atoms found matching selector: {atom_string}")
         
-        if len(indices) < 3:
-            raise ValueError("Need at least 3 atoms to define a surface")
-        
         print(f"\n{'='*60}")
         print(f"SURFACE DISTANCE CALCULATION")
         print(f"{'='*60}")
@@ -415,8 +412,15 @@ class POSCAR:
         center_of_mass = self.calculate_center_of_mass(indices)
         print(f"\nCenter of mass (Cartesian, Å): [{center_of_mass[0]:.4f}, {center_of_mass[1]:.4f}, {center_of_mass[2]:.4f}]")
         
-        # Step 2: Find 3 closest atoms to center of mass
-        closest_atoms = self.find_closest_atoms(center_of_mass, indices, n=3)
+        # Step 2: Find 3 closest atoms to center of mass (from all other atoms, not the selected ones)
+        # Get all atom indices that are NOT in the selected atoms
+        all_atom_indices = list(range(self.total_atoms))
+        other_atom_indices = [idx for idx in all_atom_indices if idx not in indices]
+        
+        if len(other_atom_indices) < 3:
+            raise ValueError(f"Need at least 3 other atoms to define a surface. Only {len(other_atom_indices)} atoms available.")
+        
+        closest_atoms = self.find_closest_atoms(center_of_mass, other_atom_indices, n=3)
         print(f"\n3 closest atoms to center of mass (1-based): {[i+1 for i in closest_atoms]}")
         
         # Step 3: Fit initial plane through these 3 atoms
