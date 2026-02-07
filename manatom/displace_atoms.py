@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """
-Script to displace atomic positions in a VASP POSCAR file.
+Script to displace atomic positions in a VASP POSCAR file or calculate surface distances.
 
 Usage:
+    # Displacement mode
     python displace_atoms.py POSCAR --atom <atom_id_or_symbol> --direction <x|y|z|a|b|c> --amount <displacement_in_angstrom>
+    
+    # Surface distance calculation mode
+    python displace_atoms.py POSCAR --atom <atom_id_or_symbol> --calculate-surface-distance [--neighbor-threshold <value>]
 
 Examples:
     # Displace atom ID 3 (third atom in POSCAR) along cartesian x by 0.5 Angstrom
@@ -17,6 +21,12 @@ Examples:
     
     # Displace atoms 2, 4 and all Fe atoms along crystallographic b by 0.1 Angstrom
     python displace_atoms.py POSCAR --atom 2,4,Fe --direction b --amount 0.1
+    
+    # Calculate surface distance for all Fe atoms
+    python displace_atoms.py POSCAR --atom Fe --calculate-surface-distance
+    
+    # Calculate surface distance with custom neighbor threshold
+    python displace_atoms.py POSCAR --atom 1,2,3,4,5 --calculate-surface-distance --neighbor-threshold 6.0
 """
 
 import argparse
